@@ -1,0 +1,259 @@
+{% extends "blindagemapp/base.html" %}
+
+{% block title %}Deputados Federais - Blindagem Não{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>
+                <i class="fas fa-users"></i> Deputados Federais
+                <small class="text-muted">({{ page_obj.paginator.count }} deputados)</small>
+            </h1>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-primary">
+                    <i class="fas fa-users"></i> Total
+                </h5>
+                <h3 class="text-primary">{{ page_obj.paginator.count }}</h3>
+                <small class="text-muted">Deputados</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-success">
+                    <i class="fas fa-share-alt"></i> Com Redes
+                </h5>
+                <h3 class="text-success">{{ com_redes_sociais }}</h3>
+                <small class="text-muted">{{ percentual_com_redes|floatformat:1 }}%</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-warning">
+                    <i class="fas fa-ban"></i> Sem Redes
+                </h5>
+                <h3 class="text-warning">{{ sem_redes_sociais }}</h3>
+                <small class="text-muted">{{ percentual_sem_redes|floatformat:1 }}%</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-info">
+                    <i class="fas fa-flag"></i> Estados
+                </h5>
+                <h3 class="text-info">{{ total_estados }}</h3>
+                <small class="text-muted">Representados</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-filter"></i> Filtros
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="get" class="row g-3">
+                    <div class="col-md-4">
+                        <label for="search" class="form-label">Buscar:</label>
+                        <input type="text" class="form-control" id="search" name="search" value="{{ search_query }}" placeholder="Nome do deputado...">
+                    </div>
+                    <div class="col-md-2">
+                        <label for="partido" class="form-label">Partido:</label>
+                        <select class="form-select" id="partido" name="partido">
+                            <option value="">Todos</option>
+                            {% for partido in partidos %}
+                                <option value="{{ partido }}" {% if partido_filter == partido %}selected{% endif %}>{{ partido }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="uf" class="form-label">Estado:</label>
+                        <select class="form-select" id="uf" name="uf">
+                            <option value="">Todos</option>
+                            {% for uf in ufs %}
+                                <option value="{{ uf }}" {% if uf_filter == uf %}selected{% endif %}>{{ uf }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="has_social_media" class="form-label">Redes Sociais:</label>
+                        <select class="form-select" id="has_social_media" name="has_social_media">
+                            <option value="">Todos</option>
+                            <option value="yes" {% if has_social_media == 'yes' %}selected{% endif %}>Com redes sociais</option>
+                            <option value="no" {% if has_social_media == 'no' %}selected{% endif %}>Sem redes sociais</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">&nbsp;</label>
+                        <button type="submit" class="btn btn-primary d-block">
+                            <i class="fas fa-search"></i> Filtrar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Deputies List -->
+<div class="row">
+    {% for deputado in page_obj %}
+        <div class="col-lg-6 col-xl-4 mb-4">
+            <div class="card deputy-card h-100 {% if deputado.has_social_media %}has-social-media{% else %}no-social-media{% endif %}">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-auto">
+                            {% if deputado.foto_url %}
+                                <img src="{{ deputado.foto_url }}" alt="{{ deputado.nome_parlamentar }}" class="deputy-photo" onerror="this.src='https://via.placeholder.com/80x80?text=Foto'">
+                            {% else %}
+                                <div class="deputy-photo bg-secondary d-flex align-items-center justify-content-center">
+                                    <i class="fas fa-user text-white"></i>
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col">
+                            <h6 class="card-title mb-1">{{ deputado.nome_parlamentar }}</h6>
+                            <p class="card-text small text-muted mb-1">
+                                {{ deputado.partido }}/{{ deputado.uf }}
+                            </p>
+                            {% if deputado.email %}
+                                <p class="card-text small mb-1">
+                                    <i class="fas fa-envelope"></i> {{ deputado.email }}
+                                </p>
+                            {% endif %}
+                            {% if deputado.telefone %}
+                                <p class="card-text small mb-1">
+                                    <i class="fas fa-phone"></i> {{ deputado.telefone }}
+                                </p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Social Media Links -->
+                    {% if deputado.has_social_media %}
+                        <div class="social-links mt-3">
+                            <strong class="small">Redes Sociais:</strong><br>
+                            {% if deputado.facebook_url %}
+                                <a href="{{ deputado.facebook_url }}" target="_blank" class="facebook" title="Facebook">
+                                    <i class="fab fa-facebook"></i>
+                                </a>
+                            {% endif %}
+                            {% if deputado.twitter_url %}
+                                <a href="{{ deputado.twitter_url }}" target="_blank" class="twitter" title="Twitter">
+                                    <i class="fab fa-twitter"></i>
+                                </a>
+                            {% endif %}
+                            {% if deputado.instagram_url %}
+                                <a href="{{ deputado.instagram_url }}" target="_blank" class="instagram" title="Instagram">
+                                    <i class="fab fa-instagram"></i>
+                                </a>
+                            {% endif %}
+                            {% if deputado.youtube_url %}
+                                <a href="{{ deputado.youtube_url }}" target="_blank" class="youtube" title="YouTube">
+                                    <i class="fab fa-youtube"></i>
+                                </a>
+                            {% endif %}
+                            {% if deputado.tiktok_url %}
+                                <a href="{{ deputado.tiktok_url }}" target="_blank" class="tiktok" title="TikTok">
+                                    <i class="fab fa-tiktok"></i>
+                                </a>
+                            {% endif %}
+                            {% if deputado.linkedin_url %}
+                                <a href="{{ deputado.linkedin_url }}" target="_blank" class="linkedin" title="LinkedIn">
+                                    <i class="fab fa-linkedin"></i>
+                                </a>
+                            {% endif %}
+                        </div>
+                    {% else %}
+                        <div class="mt-3">
+                            <small class="text-muted">
+                                <i class="fas fa-exclamation-triangle"></i> Sem redes sociais cadastradas
+                            </small>
+                        </div>
+                    {% endif %}
+                    
+                    <div class="mt-3">
+                        <a href="{% url 'deputado_detail' deputado.id_deputado_camara %}" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-eye"></i> Ver Detalhes
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% empty %}
+        <div class="col-12">
+            <div class="alert alert-info text-center">
+                <h4><i class="fas fa-search"></i> Nenhum deputado encontrado</h4>
+                <p>Tente ajustar os filtros de busca ou <a href="{% url 'deputados_list' %}">ver todos os deputados</a>.</p>
+            </div>
+        </div>
+    {% endfor %}
+</div>
+
+<!-- Pagination -->
+{% if page_obj.has_other_pages %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <nav aria-label="Navegação da página">
+                <ul class="pagination justify-content-center">
+                    <!-- First page -->
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?{% if search_query %}search={{ search_query }}&{% endif %}{% if partido_filter %}partido={{ partido_filter }}&{% endif %}{% if uf_filter %}uf={{ uf_filter }}&{% endif %}{% if has_social_media %}has_social_media={{ has_social_media }}&{% endif %}page=1">
+                                <i class="fas fa-angle-double-left"></i>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?{% if search_query %}search={{ search_query }}&{% endif %}{% if partido_filter %}partido={{ partido_filter }}&{% endif %}{% if uf_filter %}uf={{ uf_filter }}&{% endif %}{% if has_social_media %}has_social_media={{ has_social_media }}&{% endif %}page={{ page_obj.previous_page_number }}">
+                                <i class="fas fa-angle-left"></i>
+                            </a>
+                        </li>
+                    {% endif %}
+                    
+                    <!-- Current page info -->
+                    <li class="page-item active">
+                        <span class="page-link">
+                            {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                        </span>
+                    </li>
+                    
+                    <!-- Next page -->
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?{% if search_query %}search={{ search_query }}&{% endif %}{% if partido_filter %}partido={{ partido_filter }}&{% endif %}{% if uf_filter %}uf={{ uf_filter }}&{% endif %}{% if has_social_media %}has_social_media={{ has_social_media }}&{% endif %}page={{ page_obj.next_page_number }}">
+                                <i class="fas fa-angle-right"></i>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?{% if search_query %}search={{ search_query }}&{% endif %}{% if partido_filter %}partido={{ partido_filter }}&{% endif %}{% if uf_filter %}uf={{ uf_filter }}&{% endif %}{% if has_social_media %}has_social_media={{ has_social_media }}&{% endif %}page={{ page_obj.paginator.num_pages }}">
+                                <i class="fas fa-angle-double-right"></i>
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+    </div>
+{% endif %}
+
+{% endblock %}

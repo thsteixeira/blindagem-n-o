@@ -1,0 +1,144 @@
+{% extends 'blindagemapp/base.html' %}
+
+{% block title %}Início - Blindagem Não{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="jumbotron bg-primary text-white p-5 rounded mb-4">
+            <div class="container-fluid py-5">
+                <h1 class="display-4">
+                    <i class="fas fa-shield-alt"></i> Blindagem Não
+                </h1>
+                <p class="lead">
+                    Monitore a presença digital dos deputados federais brasileiros. 
+                    Descubra quais representantes estão ativos nas redes sociais e como se conectam com o povo.
+                </p>
+                <hr class="my-4" style="border-color: rgba(255,255,255,0.3);">
+                <p>
+                    Acompanhe a transparência e acessibilidade dos 692 deputados da 57ª legislatura (2023-2027).
+                </p>
+                <a class="btn btn-light btn-lg" href="{% url 'deputados_list' %}" role="button">
+                    <i class="fas fa-users"></i> Ver Deputados
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-5">
+    <div class="col-md-4 mb-3">
+        <div class="card stats-card h-100">
+            <div class="card-body text-center">
+                <i class="fas fa-users fa-3x mb-3"></i>
+                <h3>{{ total_deputados }}</h3>
+                <p class="mb-0">Deputados Cadastrados</p>
+                <small>57ª Legislatura</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-3">
+        <div class="card stats-card h-100">
+            <div class="card-body text-center">
+                <i class="fas fa-share-alt fa-3x mb-3"></i>
+                <h3>{{ deputados_com_redes_sociais }}</h3>
+                <p class="mb-0">Com Redes Sociais</p>
+                <small>{{ percentual_com_redes }}% do total</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-3">
+        <div class="card stats-card h-100">
+            <div class="card-body text-center">
+                <i class="fas fa-chart-line fa-3x mb-3"></i>
+                <h3>{{ percentual_com_redes }}%</h3>
+                <p class="mb-0">Taxa de Presença</p>
+                <small>Nas redes sociais</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Features Section -->
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4">
+            <i class="fas fa-search"></i> O que você pode descobrir
+        </h2>
+    </div>
+    
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-hashtag text-primary"></i> Redes Sociais
+                </h5>
+                <p class="card-text">
+                    Encontre os perfis oficiais dos deputados no Facebook, Twitter, Instagram, 
+                    YouTube, TikTok e LinkedIn.
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-filter text-primary"></i> Filtros Avançados
+                </h5>
+                <p class="card-text">
+                    Filtre por partido, estado, ou deputados com/sem presença nas redes sociais.
+                    Encontre exatamente quem você procura.
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-info-circle text-primary"></i> Informações Completas
+                </h5>
+                <p class="card-text">
+                    Acesse dados completos como partido, estado, gabinete, telefone e 
+                    histórico de mandatos.
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-sync-alt text-primary"></i> Dados Atualizados
+                </h5>
+                <p class="card-text">
+                    Informações extraídas diretamente da API oficial da Câmara dos Deputados 
+                    e sites oficiais.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Call to Action -->
+<div class="row mt-5">
+    <div class="col-12 text-center">
+        <div class="alert alert-info">
+            <h4><i class="fas fa-rocket"></i> Comece a explorar!</h4>
+            <p class="mb-3">
+                Descubra como seus representantes se comunicam digitalmente com a população.
+            </p>
+            <a href="{% url 'deputados_list' %}" class="btn btn-primary btn-lg">
+                <i class="fas fa-users"></i> Ver Lista Completa de Deputados
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
