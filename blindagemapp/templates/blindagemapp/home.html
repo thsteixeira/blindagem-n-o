@@ -11,16 +11,21 @@
                     <i class="fas fa-shield-alt"></i> Blindagem Não
                 </h1>
                 <p class="lead">
-                    Monitore a presença digital dos deputados federais brasileiros. 
+                    Monitore a presença digital dos deputados federais e senadores brasileiros. 
                     Descubra quais representantes estão ativos nas redes sociais e como se conectam com o povo.
                 </p>
                 <hr class="my-4" style="border-color: rgba(255,255,255,0.3);">
                 <p>
-                    Acompanhe a transparência e acessibilidade dos 692 deputados da 57ª legislatura (2023-2027).
+                    Acompanhe a transparência e acessibilidade dos representantes do Congresso Nacional.
                 </p>
-                <a class="btn btn-light btn-lg" href="{% url 'deputados_list' %}" role="button">
-                    <i class="fas fa-users"></i> Ver Deputados
-                </a>
+                <div class="d-flex gap-3">
+                    <a class="btn btn-light btn-lg" href="{% url 'deputados_list' %}" role="button">
+                        <i class="fas fa-users"></i> Ver Deputados
+                    </a>
+                    <a class="btn btn-outline-light btn-lg" href="{% url 'senadores_list' %}" role="button">
+                        <i class="fas fa-university"></i> Ver Senadores
+                    </a>
+                </div>
             </div>
         </div>
     </div>
@@ -28,6 +33,11 @@
 
 <!-- Statistics Cards -->
 <div class="row mb-5">
+    <!-- Deputies Statistics -->
+    <div class="col-12 mb-3">
+        <h3><i class="fas fa-users"></i> Deputados Federais</h3>
+    </div>
+    
     <div class="col-md-4 mb-3">
         <div class="card stats-card h-100">
             <div class="card-body text-center">
@@ -57,6 +67,44 @@
                 <h3>{{ percentual_com_redes }}%</h3>
                 <p class="mb-0">Taxa de Presença</p>
                 <small>Nas redes sociais</small>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Senators Statistics -->
+    <div class="col-12 mb-3 mt-4">
+        <h3><i class="fas fa-university"></i> Senadores</h3>
+    </div>
+    
+    <div class="col-md-4 mb-3">
+        <div class="card stats-card h-100" style="background: linear-gradient(135deg, #6c757d, #495057);">
+            <div class="card-body text-center">
+                <i class="fas fa-university fa-3x mb-3"></i>
+                <h3>{{ total_senadores }}</h3>
+                <p class="mb-0">Senadores Cadastrados</p>
+                <small>Senado Federal</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-3">
+        <div class="card stats-card h-100" style="background: linear-gradient(135deg, #6c757d, #495057);">
+            <div class="card-body text-center">
+                <i class="fas fa-share-alt fa-3x mb-3"></i>
+                <h3>{{ senadores_com_redes_sociais }}</h3>
+                <p class="mb-0">Com Redes Sociais</p>
+                <small>{{ percentual_senadores_com_redes }}% do total</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-3">
+        <div class="card stats-card h-100" style="background: linear-gradient(135deg, #6c757d, #495057);">
+            <div class="card-body text-center">
+                <i class="fas fa-info-circle fa-3x mb-3"></i>
+                <h3>N/A</h3>
+                <p class="mb-0">Dados Pessoais</p>
+                <small>Não disponíveis oficialmente</small>
             </div>
         </div>
     </div>
@@ -119,8 +167,8 @@
                     <i class="fas fa-sync-alt text-primary"></i> Dados Atualizados
                 </h5>
                 <p class="card-text">
-                    Informações extraídas diretamente da API oficial da Câmara dos Deputados 
-                    e sites oficiais.
+                    Informações extraídas diretamente das APIs oficiais da Câmara dos Deputados
+                    e do Senado Federal.
                 </p>
             </div>
         </div>
@@ -135,9 +183,14 @@
             <p class="mb-3">
                 Descubra como seus representantes se comunicam digitalmente com a população.
             </p>
-            <a href="{% url 'deputados_list' %}" class="btn btn-primary btn-lg">
-                <i class="fas fa-users"></i> Ver Lista Completa de Deputados
-            </a>
+            <div class="d-flex gap-3 justify-content-center">
+                <a href="{% url 'deputados_list' %}" class="btn btn-primary btn-lg">
+                    <i class="fas fa-users"></i> Ver Deputados
+                </a>
+                <a href="{% url 'senadores_list' %}" class="btn btn-secondary btn-lg">
+                    <i class="fas fa-university"></i> Ver Senadores
+                </a>
+            </div>
         </div>
     </div>
 </div>
