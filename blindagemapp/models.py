@@ -24,6 +24,21 @@ class Deputado(models.Model):
     tiktok_url = models.URLField(null=True, blank=True, verbose_name="TikTok")
     linkedin_url = models.URLField(null=True, blank=True, verbose_name="LinkedIn")
     
+    # Social Media Source Tracking
+    social_media_source = models.CharField(
+        max_length=50, null=True, blank=True, 
+        verbose_name="Fonte das Redes Sociais",
+        help_text="chamber_website, google_search, or manual"
+    )
+    social_media_confidence = models.CharField(
+        max_length=20, null=True, blank=True,
+        verbose_name="Confiança das Redes Sociais", 
+        help_text="high, medium, low"
+    )
+    needs_social_media_review = models.BooleanField(
+        default=False, verbose_name="Precisa Revisar Redes Sociais"
+    )
+    
     # System fields (for API integration)
     api_id = models.IntegerField(unique=True, verbose_name="ID na API da Câmara")
     
@@ -81,6 +96,21 @@ class Senador(models.Model):
     youtube_url = models.URLField(null=True, blank=True, verbose_name="YouTube")
     tiktok_url = models.URLField(null=True, blank=True, verbose_name="TikTok")
     linkedin_url = models.URLField(null=True, blank=True, verbose_name="LinkedIn")
+    
+    # Social Media Source Tracking
+    social_media_source = models.CharField(
+        max_length=50, null=True, blank=True, 
+        verbose_name="Fonte das Redes Sociais",
+        help_text="chamber_website, google_search, or manual"
+    )
+    social_media_confidence = models.CharField(
+        max_length=20, null=True, blank=True,
+        verbose_name="Confiança das Redes Sociais", 
+        help_text="high, medium, low"
+    )
+    needs_social_media_review = models.BooleanField(
+        default=False, verbose_name="Precisa Revisar Redes Sociais"
+    )
     
     # System fields (for API integration)
     api_id = models.IntegerField(unique=True, verbose_name="ID na API do Senado")

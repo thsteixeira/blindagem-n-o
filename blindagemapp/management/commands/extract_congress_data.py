@@ -36,22 +36,32 @@ class Command(BaseCommand):
             action='store_true',
             help='Do not update existing records',
         )
+        parser.add_argument(
+            '--no-google-fallback',
+            action='store_true',
+            help='Disable Google search fallback for deputies with no social media found on Chamber website (faster but less complete)',
+        )
 
     def handle(self, *args, **options):
         self.stdout.write("🚀 Starting congress data extraction...")
         
         extract_social_media = not options['skip_social_media']
         update_existing = not options['no_update']
+        use_google_fallback = not options['no_google_fallback']  # Default True, disable with --no-google-fallback
         
         if not options['senators_only']:
             self.stdout.write("\n📋 EXTRACTING DEPUTIES...")
             self.stdout.write(f"   Social media extraction: {'ON' if extract_social_media else 'OFF'}")
+            self.stdout.write(f"   Google search fallback: {'ON' if use_google_fallback else 'OFF'}")
             self.stdout.write(f"   Update existing: {'ON' if update_existing else 'OFF'}")
+            
             try:
                 extractor = DeputadosDataExtractor()
                 created, updated = extractor.extract_deputies(
                     update_existing=update_existing,
-                    extract_social_media=extract_social_media
+                    extract_social_media=extract_social_media,
+                    use_google_fallback=use_google_fallback,
+                    limit=options.get('limit')
                 )
                 self.stdout.write(f"✅ Deputies: {created} created, {updated} updated")
             except Exception as e:
@@ -59,9 +69,17 @@ class Command(BaseCommand):
         
         if not options['deputies_only']:
             self.stdout.write("\n🏛️  EXTRACTING SENATORS...")
+            self.stdout.write(f"   Social media extraction: {'ON' if extract_social_media else 'OFF'}")
+            self.stdout.write(f"   Google search fallback: {'ON' if use_google_fallback else 'OFF'}")
+            self.stdout.write(f"   Update existing: {'ON' if update_existing else 'OFF'}")
+            
             try:
                 extractor = SenadoresDataExtractor()
-                created, updated = extractor.extract_all_senators(limit=options.get('limit'))
+                created, updated = extractor.extract_all_senators(
+                    limit=options.get('limit'),
+                    extract_social_media=extract_social_media,
+                    use_google_fallback=use_google_fallback
+                )
                 self.stdout.write(f"✅ Senators: {created} created, {updated} updated")
             except Exception as e:
                 self.stdout.write(f"❌ Error extracting senators: {str(e)}")

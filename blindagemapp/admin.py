@@ -6,10 +6,11 @@ class DeputadoAdmin(admin.ModelAdmin):
     list_display = [
         'nome_parlamentar', 'partido', 'uf',
         'has_facebook', 'has_twitter', 'has_instagram',
-        'has_youtube', 'has_tiktok', 'has_linkedin', 'is_active'
+        'social_media_confidence', 'needs_social_media_review', 'is_active'
     ]
     list_filter = [
-        'partido', 'uf', 'is_active', 'created_at'
+        'partido', 'uf', 'is_active', 'social_media_confidence', 
+        'needs_social_media_review', 'social_media_source', 'created_at'
     ]
     search_fields = [
         'nome_parlamentar', 'partido', 'uf', 'email'
@@ -40,6 +41,13 @@ class DeputadoAdmin(admin.ModelAdmin):
                 'youtube_url', 'tiktok_url', 'linkedin_url'
             )
         }),
+        ('Confiança das Redes Sociais', {
+            'fields': (
+                'social_media_source', 'social_media_confidence', 
+                'needs_social_media_review'
+            ),
+            'classes': ('collapse',)
+        }),
         ('Metadados', {
             'fields': (
                 'created_at', 'updated_at'
@@ -62,21 +70,6 @@ class DeputadoAdmin(admin.ModelAdmin):
         return bool(obj.instagram_url)
     has_instagram.boolean = True
     has_instagram.short_description = 'Instagram'
-    
-    def has_youtube(self, obj):
-        return bool(obj.youtube_url)
-    has_youtube.boolean = True
-    has_youtube.short_description = 'YouTube'
-    
-    def has_tiktok(self, obj):
-        return bool(obj.tiktok_url)
-    has_tiktok.boolean = True
-    has_tiktok.short_description = 'TikTok'
-    
-    def has_linkedin(self, obj):
-        return bool(obj.linkedin_url)
-    has_linkedin.boolean = True
-    has_linkedin.short_description = 'LinkedIn'
 
 
 @admin.register(Senador)
@@ -84,10 +77,11 @@ class SenadorAdmin(admin.ModelAdmin):
     list_display = [
         'nome_parlamentar', 'partido', 'uf',
         'has_facebook', 'has_twitter', 'has_instagram',
-        'has_youtube', 'has_tiktok', 'has_linkedin', 'is_active'
+        'social_media_confidence', 'needs_social_media_review', 'is_active'
     ]
     list_filter = [
-        'partido', 'uf', 'is_active', 'created_at'
+        'partido', 'uf', 'is_active', 'social_media_confidence', 
+        'needs_social_media_review', 'social_media_source', 'created_at'
     ]
     search_fields = [
         'nome_parlamentar', 'partido', 'uf', 'email'
@@ -118,6 +112,13 @@ class SenadorAdmin(admin.ModelAdmin):
                 'youtube_url', 'tiktok_url', 'linkedin_url'
             )
         }),
+        ('Confiança das Redes Sociais', {
+            'fields': (
+                'social_media_source', 'social_media_confidence', 
+                'needs_social_media_review'
+            ),
+            'classes': ('collapse',)
+        }),
         ('Metadados', {
             'fields': (
                 'created_at', 'updated_at'
@@ -140,18 +141,3 @@ class SenadorAdmin(admin.ModelAdmin):
         return bool(obj.instagram_url)
     has_instagram.boolean = True
     has_instagram.short_description = 'Instagram'
-    
-    def has_youtube(self, obj):
-        return bool(obj.youtube_url)
-    has_youtube.boolean = True
-    has_youtube.short_description = 'YouTube'
-    
-    def has_tiktok(self, obj):
-        return bool(obj.tiktok_url)
-    has_tiktok.boolean = True
-    has_tiktok.short_description = 'TikTok'
-    
-    def has_linkedin(self, obj):
-        return bool(obj.linkedin_url)
-    has_linkedin.boolean = True
-    has_linkedin.short_description = 'LinkedIn'

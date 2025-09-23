@@ -10,6 +10,7 @@ from django.db import transaction
 from django.utils.dateparse import parse_date
 
 from .models import Senador
+from .deputados_extractor import GoogleSocialMediaSearcher
 
 logger = logging.getLogger(__name__)
 
@@ -264,25 +265,27 @@ class SenadoresDataExtractor:
         mandate_data['suplentes'] = suplentes
         return mandate_data
     
-    def extract_social_media_links(self, senator_data: Dict) -> Dict[str, Optional[str]]:
+    def extract_social_media_links(self, senator_data: Dict, use_google_fallback: bool = False) -> Dict[str, Any]:
         """
-        Extract social media links for a senator by scraping their Senate page
+        Extract social media links for a senator
         
-        NOTE: Senate profile pages only contain institutional social media links 
-        (@SenadoFederal), not personal senator accounts. This method returns empty
-        values to avoid storing institutional links as personal ones.
+        Senate profile pages only contain institutional social media links 
+        (@SenadoFederal), not personal senator accounts. With Google fallback 
+        enabled, this method will search Google for the senator's personal
+        social media accounts.
         
         Args:
             senator_data: Dictionary containing senator information
+            use_google_fallback: Use Google search to find social media accounts
             
         Returns:
-            Dictionary with social media links (all None for senators)
+            Dictionary with social media links and confidence information
         """
         senator_id = senator_data.get('codigo')
-        pagina_url = senator_data.get('pagina_parlamentar_url')
+        nome_parlamentar = senator_data.get('nome_parlamentar', '')
+        nome_completo = senator_data.get('nome_completo_parlamentar', nome_parlamentar)
         
-        # Senate pages only contain institutional social media (@SenadoFederal)
-        # not personal senator accounts, so we return empty values
+        # Initialize with empty social media
         social_media = {
             'facebook': None,
             'twitter': None,
@@ -292,15 +295,93 @@ class SenadoresDataExtractor:
             'linkedin': None
         }
         
-        logger.info(f"Senador {senator_id}: Páginas do Senado não contêm redes sociais pessoais dos senadores")
-        return social_media
+        # Initialize confidence metadata
+        confidence_info = {
+            'source': 'chamber_website',
+            'confidence': None,
+            'needs_review': False
+        }
+        
+        # Senate pages only contain institutional social media (@SenadoFederal)
+        # Skip scraping official pages since they don't have personal accounts
+        logger.info(f"Senador {senator_id}: Páginas do Senado não contêm redes sociais pessoais")
+        
+        # Use Google search as fallback if enabled
+        if use_google_fallback and nome_parlamentar:
+            logger.info(f"Usando Google search para encontrar redes sociais do senador {nome_parlamentar}")
+            
+            try:
+                # Initialize Google searcher
+                google_searcher = GoogleSocialMediaSearcher()
+                
+                # Search for senator's social media
+                google_results = google_searcher.search_deputy_social_media(
+                    nome_completo, nome_parlamentar, role="senador"
+                )
+                
+                # Process Google results with confidence information
+                if google_results:
+                    found_platforms = []
+                    total_confidence_score = 0
+                    needs_any_review = False
+                    
+                    for platform, platform_data in google_results.items():
+                        if isinstance(platform_data, dict) and 'url' in platform_data:
+                            social_media[platform] = platform_data['url']
+                            
+                            # Extract confidence information
+                            conf_info = platform_data.get('confidence_info', {})
+                            platform_confidence = conf_info.get('confidence', 'low')
+                            platform_needs_review = conf_info.get('needs_review', True)
+                            
+                            found_platforms.append(platform)
+                            
+                            # Track if any platform needs review
+                            if platform_needs_review:
+                                needs_any_review = True
+                            
+                            # Calculate overall confidence score
+                            conf_score = {'high': 3, 'medium': 2, 'low': 1}.get(platform_confidence, 1)
+                            total_confidence_score += conf_score
+                            
+                            logger.info(f"Google found {platform} for {nome_parlamentar}: {platform_data['url']} (confidence: {platform_confidence})")
+                    
+                    # Set overall confidence based on average
+                    if found_platforms:
+                        avg_score = total_confidence_score / len(found_platforms)
+                        if avg_score >= 2.5:
+                            overall_confidence = 'high'
+                        elif avg_score >= 1.5:
+                            overall_confidence = 'medium'
+                        else:
+                            overall_confidence = 'low'
+                        
+                        confidence_info = {
+                            'source': 'google_search',
+                            'confidence': overall_confidence,
+                            'needs_review': needs_any_review or overall_confidence != 'high'
+                        }
+                        
+                        logger.info(f"Google search result for {nome_parlamentar}: {len(found_platforms)} platforms found with {overall_confidence} confidence")
+                    
+                else:
+                    logger.info(f"Google search: Nenhuma rede social encontrada para {nome_parlamentar}")
+                
+            except Exception as e:
+                logger.error(f"Erro no Google search para senador {nome_parlamentar}: {str(e)}")
+        
+        # Return both social media URLs and confidence metadata
+        result = dict(social_media)
+        result['_confidence_info'] = confidence_info
+        return result
     
-    def save_senator_data(self, senator_data: Dict) -> Tuple[str, str]:
+    def save_senator_data(self, senator_data: Dict, social_media: Dict[str, Any] = None) -> Tuple[str, str]:
         """
-        Save simplified senator data to the database
+        Save simplified senator data to the database including social media and confidence info
         
         Args:
             senator_data: Dictionary containing basic senator information
+            social_media: Dictionary containing social media URLs and confidence info
             
         Returns:
             Tuple of (action, message) where action is 'created', 'updated', or 'error'
@@ -310,23 +391,60 @@ class SenadoresDataExtractor:
         
         try:
             with transaction.atomic():
+                # Extract confidence information if provided
+                confidence_info = {}
+                if social_media and '_confidence_info' in social_media:
+                    confidence_info = social_media.pop('_confidence_info')
+                    
+                # Prepare senator data
+                senator_defaults = {
+                    'nome_parlamentar': senator_data.get('nome_parlamentar', ''),
+                    'partido': senator_data.get('partido', ''),
+                    'uf': senator_data.get('uf', ''),
+                    'email': senator_data.get('email'),
+                    'telefone': ', '.join(senator_data.get('telefones', [])) if senator_data.get('telefones') else None,
+                    'foto_url': senator_data.get('foto_url'),
+                    'is_active': True
+                }
+                
+                # Add social media URLs if provided
+                if social_media:
+                    senator_defaults.update({
+                        'facebook_url': social_media.get('facebook'),
+                        'twitter_url': social_media.get('twitter'),
+                        'instagram_url': social_media.get('instagram'),
+                        'youtube_url': social_media.get('youtube'),
+                        'tiktok_url': social_media.get('tiktok'),
+                        'linkedin_url': social_media.get('linkedin'),
+                    })
+                    
+                    # Add confidence tracking fields
+                    if confidence_info:
+                        senator_defaults.update({
+                            'social_media_source': confidence_info.get('source'),
+                            'social_media_confidence': confidence_info.get('confidence'),
+                            'needs_social_media_review': confidence_info.get('needs_review', False)
+                        })
+                
                 # Create or update senator with simplified fields
                 senator, created = Senador.objects.update_or_create(
                     api_id=int(senator_data['codigo']),
-                    defaults={
-                        'nome_parlamentar': senator_data.get('nome_parlamentar', ''),
-                        'partido': senator_data.get('partido', ''),
-                        'uf': senator_data.get('uf', ''),
-                        'email': senator_data.get('email'),
-                        'telefone': ', '.join(senator_data.get('telefones', [])) if senator_data.get('telefones') else None,
-                        'foto_url': senator_data.get('foto_url'),
-                        'is_active': True
-                    }
+                    defaults=senator_defaults
                 )
                 
                 action = "created" if created else "updated"
                 action_pt = "Criado" if created else "Atualizado"
-                logger.info(f"{action_pt} senador: {senator_data.get('nome_parlamentar')}")
+                
+                # Log confidence information if available
+                if confidence_info:
+                    conf_source = confidence_info.get('source', 'unknown')
+                    conf_level = confidence_info.get('confidence', 'none')
+                    needs_review = confidence_info.get('needs_review', False)
+                    
+                    logger.info(f"{action_pt} senador: {senator_data.get('nome_parlamentar')} (fonte: {conf_source}, confiança: {conf_level}, revisar: {needs_review})")
+                else:
+                    logger.info(f"{action_pt} senador: {senator_data.get('nome_parlamentar')}")
+                    
                 return action, f"{action_pt} senador: {senator_data.get('nome_parlamentar')}"
                 
         except Exception as e:
@@ -349,12 +467,14 @@ class SenadoresDataExtractor:
             return element.text.strip()
         return None
     
-    def extract_all_senators(self, limit: Optional[int] = None) -> Tuple[int, int]:
+    def extract_all_senators(self, limit: Optional[int] = None, extract_social_media: bool = False, use_google_fallback: bool = False) -> Tuple[int, int]:
         """
-        Extract and save all current senators with essential information only
+        Extract and save all current senators with essential information and optional social media
         
         Args:
             limit: Maximum number of senators to process (for testing)
+            extract_social_media: Whether to extract social media links
+            use_google_fallback: Use Google search as fallback when no social media found on Senate pages
             
         Returns:
             Tuple of (created_count, updated_count)
@@ -386,7 +506,21 @@ class SenadoresDataExtractor:
             logger.info(f"Processando {nome} (ID: {codigo}) [{i}/{len(senators_list)}]...")
             
             try:
-                success, message = self.save_senator_data(senator_data)
+                # Extract social media if requested
+                social_media = None
+                if extract_social_media:
+                    logger.info(f"Extraindo redes sociais para {nome}...")
+                    social_media = self.extract_social_media_links(
+                        senator_data, 
+                        use_google_fallback=use_google_fallback
+                    )
+                    # Reduced delay to avoid overwhelming Google (faster processing)
+                    if use_google_fallback:
+                        import time
+                        time.sleep(0.8)
+                
+                # Save senator data with social media
+                success, message = self.save_senator_data(senator_data, social_media)
                 if success == 'created':
                     created_count += 1
                 elif success == 'updated':
