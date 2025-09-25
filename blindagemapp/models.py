@@ -16,13 +16,11 @@ class Deputado(models.Model):
     telefone = models.CharField(max_length=50, null=True, blank=True, verbose_name="Telefone")
     foto_url = models.URLField(null=True, blank=True, verbose_name="Foto")
     
-    # Social Media Links
-    facebook_url = models.URLField(null=True, blank=True, verbose_name="Facebook")
+    # Twitter-only Social Media
     twitter_url = models.URLField(null=True, blank=True, verbose_name="Twitter/X")
-    instagram_url = models.URLField(null=True, blank=True, verbose_name="Instagram") 
-    youtube_url = models.URLField(null=True, blank=True, verbose_name="YouTube")
-    tiktok_url = models.URLField(null=True, blank=True, verbose_name="TikTok")
-    linkedin_url = models.URLField(null=True, blank=True, verbose_name="LinkedIn")
+    
+    # Latest Tweet Information
+    latest_tweet_url = models.URLField(null=True, blank=True, verbose_name="Último Tweet")
     
     # Social Media Source Tracking
     social_media_source = models.CharField(
@@ -62,16 +60,31 @@ class Deputado(models.Model):
         return f"{self.nome_parlamentar} ({self.partido}/{self.uf})"
     
     @property
-    def has_social_media(self):
-        """Check if deputy has any social media links"""
-        return any([
-            self.facebook_url,
-            self.twitter_url, 
-            self.instagram_url,
-            self.youtube_url,
-            self.tiktok_url,
-            self.linkedin_url
-        ])
+    def has_twitter(self):
+        """Check if deputy has Twitter account"""
+        return bool(self.twitter_url)
+    
+    def get_twitter_reply_link(self, message=None):
+        """Generate a Twitter reply link for the deputy's latest tweet"""
+        if not self.latest_tweet_url:
+            return None
+            
+        import re
+        from urllib.parse import quote
+        
+        # Extract tweet ID
+        tweet_id_match = re.search(r'/status/(\d+)', self.latest_tweet_url)
+        if not tweet_id_match:
+            return None
+            
+        tweet_id = tweet_id_match.group(1)
+        
+        # Default message
+        if not message:
+            message = f"Olá {self.nome_parlamentar}! Gostaria de dialogar sobre suas propostas. #TransparênciaPolítica"
+        
+        encoded_message = quote(message)
+        return f"https://twitter.com/intent/tweet?in_reply_to={tweet_id}&text={encoded_message}"
 
 
 class Senador(models.Model):
@@ -89,13 +102,11 @@ class Senador(models.Model):
     telefone = models.CharField(max_length=50, null=True, blank=True, verbose_name="Telefone")
     foto_url = models.URLField(null=True, blank=True, verbose_name="Foto")
     
-    # Social Media Links
-    facebook_url = models.URLField(null=True, blank=True, verbose_name="Facebook")
+    # Twitter-only Social Media
     twitter_url = models.URLField(null=True, blank=True, verbose_name="Twitter/X")
-    instagram_url = models.URLField(null=True, blank=True, verbose_name="Instagram")
-    youtube_url = models.URLField(null=True, blank=True, verbose_name="YouTube")
-    tiktok_url = models.URLField(null=True, blank=True, verbose_name="TikTok")
-    linkedin_url = models.URLField(null=True, blank=True, verbose_name="LinkedIn")
+    
+    # Latest Tweet Information
+    latest_tweet_url = models.URLField(null=True, blank=True, verbose_name="Último Tweet")
     
     # Social Media Source Tracking
     social_media_source = models.CharField(
@@ -135,13 +146,28 @@ class Senador(models.Model):
         return f"{self.nome_parlamentar} ({self.partido}/{self.uf})"
     
     @property
-    def has_social_media(self):
-        """Check if senator has any social media links"""
-        return any([
-            self.facebook_url,
-            self.twitter_url,
-            self.instagram_url,
-            self.youtube_url,
-            self.tiktok_url,
-            self.linkedin_url
-        ])
+    def has_twitter(self):
+        """Check if senator has Twitter account"""
+        return bool(self.twitter_url)
+    
+    def get_twitter_reply_link(self, message=None):
+        """Generate a Twitter reply link for the senator's latest tweet"""
+        if not self.latest_tweet_url:
+            return None
+            
+        import re
+        from urllib.parse import quote
+        
+        # Extract tweet ID
+        tweet_id_match = re.search(r'/status/(\d+)', self.latest_tweet_url)
+        if not tweet_id_match:
+            return None
+            
+        tweet_id = tweet_id_match.group(1)
+        
+        # Default message
+        if not message:
+            message = f"Olá {self.nome_parlamentar}! Gostaria de dialogar sobre suas propostas. #TransparênciaPolítica"
+        
+        encoded_message = quote(message)
+        return f"https://twitter.com/intent/tweet?in_reply_to={tweet_id}&text={encoded_message}"

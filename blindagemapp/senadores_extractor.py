@@ -10,7 +10,7 @@ from django.db import transaction
 from django.utils.dateparse import parse_date
 
 from .models import Senador
-from .deputados_extractor import GoogleSocialMediaSearcher
+from .deputados_extractor import TwitterSearcher
 
 logger = logging.getLogger(__name__)
 
@@ -265,107 +265,151 @@ class SenadoresDataExtractor:
         mandate_data['suplentes'] = suplentes
         return mandate_data
     
-    def extract_social_media_links(self, senator_data: Dict, use_google_fallback: bool = False) -> Dict[str, Any]:
+    def extract_twitter_info(self, senator_data: Dict, use_google_fallback: bool = False) -> Dict[str, Any]:
         """
-        Extract social media links for a senator
+        Extract Twitter account and latest tweet info for a senator
         
-        Senate profile pages only contain institutional social media links 
-        (@SenadoFederal), not personal senator accounts. With Google fallback 
-        enabled, this method will search Google for the senator's personal
-        social media accounts.
+        First tries the official Senate API, then falls back to Google search
+        if enabled.
         
         Args:
             senator_data: Dictionary containing senator information
-            use_google_fallback: Use Google search to find social media accounts
+            use_google_fallback: Use Google search to find Twitter account
             
         Returns:
-            Dictionary with social media links and confidence information
+            Dictionary with Twitter URL, latest tweet URL, and confidence information
         """
         senator_id = senator_data.get('codigo')
         nome_parlamentar = senator_data.get('nome_parlamentar', '')
         nome_completo = senator_data.get('nome_completo_parlamentar', nome_parlamentar)
         
-        # Initialize with empty social media
+        # Initialize with empty Twitter info
         social_media = {
-            'facebook': None,
-            'twitter': None,
-            'instagram': None,
-            'youtube': None,
-            'tiktok': None,
-            'linkedin': None
+            'twitter': None
         }
         
         # Initialize confidence metadata
         confidence_info = {
-            'source': 'chamber_website',
+            'source': None,
             'confidence': None,
             'needs_review': False
         }
         
-        # Senate pages only contain institutional social media (@SenadoFederal)
-        # Skip scraping official pages since they don't have personal accounts
-        logger.info(f"Senador {senator_id}: Páginas do Senado não contêm redes sociais pessoais")
+        # STEP 1: Try to get social media from official Senate API first
+        try:
+            senator_details = self.get_senator_details(senator_id)
+            if senator_details:
+                # Check if there are social media links in the API response
+                # Look for any fields that might contain social media URLs
+                potential_social_fields = []
+                
+                # Check common social media field names
+                for field in ['redeSocial', 'redes_sociais', 'social_media', 'twitter_url', 'pagina_parlamentar_url']:
+                    if field in senator_details and senator_details[field]:
+                        potential_social_fields.append((field, senator_details[field]))
+                
+                # If we have a pagina_parlamentar_url, it might contain social media info
+                if senator_details.get('pagina_parlamentar_url'):
+                    logger.info(f"Found official page URL for senator {senator_id}: {senator_details['pagina_parlamentar_url']}")
+                
+                # Parse any social media URLs found
+                for field_name, field_value in potential_social_fields:
+                    if isinstance(field_value, list):
+                        # Handle list of URLs (like deputies redeSocial)
+                        for url_item in field_value:
+                            url_lower = str(url_item).lower()
+                            if 'twitter.com' in url_lower or 'x.com' in url_lower:
+                                social_media['twitter'] = url_item
+                                break
+                    elif isinstance(field_value, str):
+                        # Handle single URL string
+                        url_lower = field_value.lower()
+                        if 'twitter.com' in url_lower or 'x.com' in url_lower:
+                            social_media['twitter'] = field_value
+                
+                # If found Twitter in API, set metadata and try to extract latest tweet
+                if social_media['twitter']:
+                    confidence_info = {
+                        'source': 'official_api',
+                        'confidence': 'high',
+                        'needs_review': False
+                    }
+                    
+                    logger.info(f"Found Twitter in Senate API for senator {senator_id}: {social_media['twitter']}")
+                    
+                    # Extract latest tweet URL
+                    try:
+                        twitter_searcher = TwitterSearcher()
+                        latest_tweet_url = twitter_searcher.extract_latest_tweet_url(social_media['twitter'])
+                        if latest_tweet_url:
+                            logger.info(f"Found latest tweet URL from API for {nome_parlamentar}: {latest_tweet_url}")
+                        
+                        # Return early with API result
+                        result = dict(social_media)
+                        result['_confidence_info'] = confidence_info
+                        if latest_tweet_url:
+                            result['latest_tweet_url'] = latest_tweet_url
+                        return result
+                        
+                    except Exception as tweet_e:
+                        logger.error(f"Error extracting latest tweet from API for {nome_parlamentar}: {str(tweet_e)}")
+                        
+                        # Still return the Twitter URL even if tweet extraction fails
+                        result = dict(social_media)
+                        result['_confidence_info'] = confidence_info
+                        return result
+                        
+        except Exception as e:
+            logger.warning(f"Error fetching official social media for senator {senator_id}: {str(e)}")
         
-        # Use Google search as fallback if enabled
-        if use_google_fallback and nome_parlamentar:
+        # STEP 2: Google search fallback if enabled and no Twitter found in API
+        
+        # STEP 2: Google search fallback if enabled and no Twitter found in API
+        if use_google_fallback and not social_media['twitter'] and nome_parlamentar:
             logger.info(f"Usando Google search para encontrar redes sociais do senador {nome_parlamentar}")
             
             try:
                 # Initialize Google searcher
-                google_searcher = GoogleSocialMediaSearcher()
+                twitter_searcher = TwitterSearcher()
                 
-                # Search for senator's social media
-                google_results = google_searcher.search_deputy_social_media(
-                    nome_completo, nome_parlamentar, role="senador"
+                # Search for senator's Twitter account
+                twitter_result = twitter_searcher.search_twitter_account(
+                    nome_completo, nome_parlamentar
                 )
                 
-                # Process Google results with confidence information
-                if google_results:
-                    found_platforms = []
-                    total_confidence_score = 0
-                    needs_any_review = False
+                # Process Twitter search result
+                if twitter_result:
+                    social_media['twitter'] = twitter_result['url']
                     
-                    for platform, platform_data in google_results.items():
-                        if isinstance(platform_data, dict) and 'url' in platform_data:
-                            social_media[platform] = platform_data['url']
-                            
-                            # Extract confidence information
-                            conf_info = platform_data.get('confidence_info', {})
-                            platform_confidence = conf_info.get('confidence', 'low')
-                            platform_needs_review = conf_info.get('needs_review', True)
-                            
-                            found_platforms.append(platform)
-                            
-                            # Track if any platform needs review
-                            if platform_needs_review:
-                                needs_any_review = True
-                            
-                            # Calculate overall confidence score
-                            conf_score = {'high': 3, 'medium': 2, 'low': 1}.get(platform_confidence, 1)
-                            total_confidence_score += conf_score
-                            
-                            logger.info(f"Google found {platform} for {nome_parlamentar}: {platform_data['url']} (confidence: {platform_confidence})")
+                    confidence_info = {
+                        'source': 'google_search',
+                        'confidence': twitter_result['confidence'],
+                        'needs_review': twitter_result['needs_review']
+                    }
                     
-                    # Set overall confidence based on average
-                    if found_platforms:
-                        avg_score = total_confidence_score / len(found_platforms)
-                        if avg_score >= 2.5:
-                            overall_confidence = 'high'
-                        elif avg_score >= 1.5:
-                            overall_confidence = 'medium'
+                    logger.info(f"Google found Twitter for {nome_parlamentar}: {twitter_result['url']} (confidence: {twitter_result['confidence']})")
+                    
+                    # Extract latest tweet URL if Twitter was found
+                    latest_tweet_url = None
+                    try:
+                        logger.info(f"Extracting latest tweet URL for {nome_parlamentar} from {social_media['twitter']}")
+                        latest_tweet_url = twitter_searcher.extract_latest_tweet_url(social_media['twitter'])
+                        if latest_tweet_url:
+                            logger.info(f"Found latest tweet URL for {nome_parlamentar}: {latest_tweet_url}")
                         else:
-                            overall_confidence = 'low'
-                        
-                        confidence_info = {
-                            'source': 'google_search',
-                            'confidence': overall_confidence,
-                            'needs_review': needs_any_review or overall_confidence != 'high'
-                        }
-                        
-                        logger.info(f"Google search result for {nome_parlamentar}: {len(found_platforms)} platforms found with {overall_confidence} confidence")
+                            logger.warning(f"Could not extract latest tweet URL for {nome_parlamentar}")
+                    except Exception as tweet_e:
+                        logger.error(f"Error extracting latest tweet for {nome_parlamentar}: {str(tweet_e)}")
+                    
+                    # Add latest tweet URL to result
+                    result = dict(social_media)
+                    result['_confidence_info'] = confidence_info
+                    if latest_tweet_url:
+                        result['latest_tweet_url'] = latest_tweet_url
+                    return result
                     
                 else:
-                    logger.info(f"Google search: Nenhuma rede social encontrada para {nome_parlamentar}")
+                    logger.info(f"Google search: No Twitter found for {nome_parlamentar}")
                 
             except Exception as e:
                 logger.error(f"Erro no Google search para senador {nome_parlamentar}: {str(e)}")
@@ -407,15 +451,11 @@ class SenadoresDataExtractor:
                     'is_active': True
                 }
                 
-                # Add social media URLs if provided
+                # Add Twitter info if provided
                 if social_media:
                     senator_defaults.update({
-                        'facebook_url': social_media.get('facebook'),
                         'twitter_url': social_media.get('twitter'),
-                        'instagram_url': social_media.get('instagram'),
-                        'youtube_url': social_media.get('youtube'),
-                        'tiktok_url': social_media.get('tiktok'),
-                        'linkedin_url': social_media.get('linkedin'),
+                        'latest_tweet_url': social_media.get('latest_tweet_url'),
                     })
                     
                     # Add confidence tracking fields
@@ -467,7 +507,7 @@ class SenadoresDataExtractor:
             return element.text.strip()
         return None
     
-    def extract_all_senators(self, limit: Optional[int] = None, extract_social_media: bool = False, use_google_fallback: bool = False) -> Tuple[int, int]:
+    def extract_all_senators(self, limit: Optional[int] = None, extract_social_media: bool = False, use_google_fallback: bool = False, twitter_only: bool = False) -> Tuple[int, int]:
         """
         Extract and save all current senators with essential information and optional social media
         
@@ -510,7 +550,7 @@ class SenadoresDataExtractor:
                 social_media = None
                 if extract_social_media:
                     logger.info(f"Extraindo redes sociais para {nome}...")
-                    social_media = self.extract_social_media_links(
+                    social_media = self.extract_twitter_info(
                         senator_data, 
                         use_google_fallback=use_google_fallback
                     )

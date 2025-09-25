@@ -30,10 +30,10 @@
     <div class="col-md-3">
         <div class="card text-center">
             <div class="card-body">
-                <h5 class="card-title text-success">
-                    <i class="fas fa-share-alt"></i> Com Redes
+                <h5 class="card-title text-info">
+                    <i class="fab fa-x-twitter"></i> Com Twitter
                 </h5>
-                <h3 class="text-success">{{ com_redes_sociais }}</h3>
+                <h3 class="text-info">{{ com_redes_sociais }}</h3>
                 <small class="text-muted">{{ percentual_com_redes|floatformat:1 }}%</small>
             </div>
         </div>
@@ -42,7 +42,7 @@
         <div class="card text-center">
             <div class="card-body">
                 <h5 class="card-title text-warning">
-                    <i class="fas fa-ban"></i> Sem Redes
+                    <i class="fas fa-ban"></i> Sem Twitter
                 </h5>
                 <h3 class="text-warning">{{ sem_redes_sociais }}</h3>
                 <small class="text-muted">{{ percentual_sem_redes|floatformat:1 }}%</small>
@@ -96,11 +96,11 @@
                         </select>
                     </div>
                     <div class="col-md-2">
-                        <label for="has_social_media" class="form-label">Redes Sociais:</label>
+                        <label for="has_social_media" class="form-label">Twitter:</label>
                         <select class="form-select" id="has_social_media" name="has_social_media">
                             <option value="">Todos</option>
-                            <option value="yes" {% if has_social_media == 'yes' %}selected{% endif %}>Com redes sociais</option>
-                            <option value="no" {% if has_social_media == 'no' %}selected{% endif %}>Sem redes sociais</option>
+                            <option value="yes" {% if has_social_media == 'yes' %}selected{% endif %}>Com Twitter</option>
+                            <option value="no" {% if has_social_media == 'no' %}selected{% endif %}>Sem Twitter</option>
                         </select>
                     </div>
                     <div class="col-md-2">
@@ -149,45 +149,23 @@
                         </div>
                     </div>
                     
-                    <!-- Social Media Links -->
-                    {% if deputado.has_social_media %}
+                    <!-- Twitter Link -->
+                    {% if deputado.twitter_url %}
                         <div class="social-links mt-3">
-                            <strong class="small">Redes Sociais:</strong><br>
-                            {% if deputado.facebook_url %}
-                                <a href="{{ deputado.facebook_url }}" target="_blank" class="facebook" title="Facebook">
-                                    <i class="fab fa-facebook"></i>
-                                </a>
-                            {% endif %}
-                            {% if deputado.twitter_url %}
-                                <a href="{{ deputado.twitter_url }}" target="_blank" class="twitter" title="Twitter">
-                                    <i class="fab fa-twitter"></i>
-                                </a>
-                            {% endif %}
-                            {% if deputado.instagram_url %}
-                                <a href="{{ deputado.instagram_url }}" target="_blank" class="instagram" title="Instagram">
-                                    <i class="fab fa-instagram"></i>
-                                </a>
-                            {% endif %}
-                            {% if deputado.youtube_url %}
-                                <a href="{{ deputado.youtube_url }}" target="_blank" class="youtube" title="YouTube">
-                                    <i class="fab fa-youtube"></i>
-                                </a>
-                            {% endif %}
-                            {% if deputado.tiktok_url %}
-                                <a href="{{ deputado.tiktok_url }}" target="_blank" class="tiktok" title="TikTok">
-                                    <i class="fab fa-tiktok"></i>
-                                </a>
-                            {% endif %}
-                            {% if deputado.linkedin_url %}
-                                <a href="{{ deputado.linkedin_url }}" target="_blank" class="linkedin" title="LinkedIn">
-                                    <i class="fab fa-linkedin"></i>
+                            <strong class="small">Twitter/X:</strong><br>
+                            <a href="{{ deputado.twitter_url }}" target="_blank" class="twitter btn btn-outline-info btn-sm" title="Twitter/X">
+                                <i class="fab fa-x-twitter"></i> @{{ deputado.twitter_url|slice:"twitter.com/"|default:"Twitter" }}
+                            </a>
+                            {% if deputado.latest_tweet_url %}
+                                <a href="{{ deputado.latest_tweet_url }}" target="_blank" class="btn btn-outline-secondary btn-sm ms-1" title="Último Tweet">
+                                    <i class="fas fa-eye"></i>
                                 </a>
                             {% endif %}
                         </div>
                     {% else %}
                         <div class="mt-3">
                             <small class="text-muted">
-                                <i class="fas fa-exclamation-triangle"></i> Sem redes sociais cadastradas
+                                <i class="fab fa-x-twitter"></i> Twitter não encontrado
                             </small>
                         </div>
                     {% endif %}
