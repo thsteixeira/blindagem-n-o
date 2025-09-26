@@ -9,7 +9,6 @@ urlpatterns = [
     path('senador/<int:senador_id>/', views.senador_detail_view, name='senador_detail'),
     
     # Twitter Messages
-    path('twitter-messages/', views.twitter_messages_list_view, name='twitter_messages_list'),
     path('twitter-message/<int:message_id>/preview/', views.twitter_message_preview, name='twitter_message_preview'),
     path('twitter-link/<int:message_id>/mark-used/', views.mark_message_used, name='mark_message_used'),
 ]

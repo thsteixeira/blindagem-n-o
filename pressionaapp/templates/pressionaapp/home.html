@@ -1,6 +1,6 @@
 {% extends 'pressionaapp/base.html' %}
 
-{% block title %}Início - Blindagem Não{% endblock %}
+{% block title %}Início - Pressiona{% endblock %}
 
 {% block content %}
 <div class="row">
@@ -8,17 +8,16 @@
         <div class="jumbotron bg-primary text-white p-5 rounded mb-4">
             <div class="container-fluid py-5">
                 <h1 class="display-4">
-                    <i class="fas fa-shield-alt"></i> Blindagem Não
+                    <i class="fas fa-bullhorn"></i> Pressiona
                 </h1>
                 <p class="lead">
-                    Monitore a presença no Twitter dos deputados federais e senadores brasileiros. 
-                    Descubra quais representantes estão ativos no Twitter/X e como se conectam com o povo.
+                    Pressione seus representantes por transparência! Monitore a presença digital dos deputados e senadores brasileiros no Twitter/X e engage diretamente com suas propostas.
                 </p>
                 <hr class="my-4" style="border-color: rgba(255,255,255,0.3);">
                 <p>
-                    Acompanhe a transparência e acessibilidade dos representantes do Congresso Nacional.
+                    Encontre os perfis oficiais, acesse os últimos tweets e use nossas mensagens pré-moldadas para cobrar transparência do Congresso Nacional.
                 </p>
-                <div class="d-flex gap-3">
+                <div class="d-flex gap-3 flex-wrap justify-content-center">
                     <a class="btn btn-light btn-lg" href="{% url 'deputados_list' %}" role="button">
                         <i class="fas fa-users"></i> Ver Deputados
                     </a>
@@ -114,7 +113,7 @@
 <div class="row">
     <div class="col-12">
         <h2 class="mb-4">
-            <i class="fas fa-search"></i> O que você pode descobrir
+            <i class="fas fa-rocket"></i> Como pressionar por transparência
         </h2>
     </div>
     
@@ -122,11 +121,11 @@
         <div class="card h-100">
             <div class="card-body">
                 <h5 class="card-title">
-                    <i class="fab fa-x-twitter text-primary"></i> Twitter/X
+                    <i class="fab fa-twitter text-primary"></i> Acesso Direto ao Twitter
                 </h5>
                 <p class="card-text">
-                    Encontre os perfis oficiais dos deputados e senadores no Twitter/X, 
-                    incluindo seus tweets mais recentes e opções para interação.
+                    Encontre os perfis oficiais e acesse os últimos tweets dos parlamentares. 
+                    Links diretos para responder e engajar com suas publicações.
                 </p>
             </div>
         </div>
@@ -136,11 +135,11 @@
         <div class="card h-100">
             <div class="card-body">
                 <h5 class="card-title">
-                    <i class="fas fa-filter text-primary"></i> Filtros Avançados
+                    <i class="fas fa-reply text-primary"></i> Engajamento Direto
                 </h5>
                 <p class="card-text">
-                    Filtre por partido, estado, ou parlamentares com/sem presença no Twitter.
-                    Encontre exatamente quem você procura.
+                    Responda diretamente aos tweets dos parlamentares com links de resposta automática. 
+                    Cobre transparência e faça perguntas sobre suas propostas.
                 </p>
             </div>
         </div>
@@ -150,11 +149,11 @@
         <div class="card h-100">
             <div class="card-body">
                 <h5 class="card-title">
-                    <i class="fas fa-info-circle text-primary"></i> Informações Completas
+                    <i class="fas fa-search text-primary"></i> Filtros Inteligentes
                 </h5>
                 <p class="card-text">
-                    Acesse dados completos como partido, estado, gabinete, telefone e 
-                    histórico de mandatos.
+                    Filtre por partido, estado, ou presença no Twitter. 
+                    Encontre exatamente os representantes que você quer pressionar.
                 </p>
             </div>
         </div>
@@ -164,11 +163,11 @@
         <div class="card h-100">
             <div class="card-body">
                 <h5 class="card-title">
-                    <i class="fas fa-sync-alt text-primary"></i> Dados Atualizados
+                    <i class="fas fa-database text-primary"></i> Dados Oficiais
                 </h5>
                 <p class="card-text">
-                    Informações extraídas diretamente das APIs oficiais da Câmara dos Deputados
-                    e do Senado Federal.
+                    Informações extraídas das APIs oficiais da Câmara e Senado, 
+                    complementadas com busca inteligente de redes sociais.
                 </p>
             </div>
         </div>
@@ -179,11 +178,11 @@
 <div class="row mt-5">
     <div class="col-12 text-center">
         <div class="alert alert-info">
-            <h4><i class="fas fa-rocket"></i> Comece a explorar!</h4>
+            <h4><i class="fas fa-bullhorn"></i> Comece a pressionar!</h4>
             <p class="mb-3">
-                Descubra como seus representantes se comunicam digitalmente com a população.
+                Engaje com seus representantes e cobre transparência do Congresso Nacional.
             </p>
-            <div class="d-flex gap-3 justify-content-center">
+            <div class="d-flex gap-3 justify-content-center flex-wrap">
                 <a href="{% url 'deputados_list' %}" class="btn btn-primary btn-lg">
                     <i class="fas fa-users"></i> Ver Deputados
                 </a>
