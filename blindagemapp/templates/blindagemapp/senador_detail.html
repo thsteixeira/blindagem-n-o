@@ -1,4 +1,5 @@
 {% extends "blindagemapp/base.html" %}
+{% load custom_tags %}
 
 {% block title %}{{ senador.nome_parlamentar }} - Senador - Blindagem Não{% endblock %}
 
@@ -94,18 +95,44 @@
             <div class="card-body">
                 {% if senador.twitter_url %}
                     <div class="social-links-detail">
-                        <a href="{{ senador.twitter_url }}" target="_blank" class="btn btn-outline-info btn-sm mb-3 w-100 twitter">
-                            <i class="fab fa-x-twitter"></i> Acessar Perfil
-                        </a>
+                        <h6 class="mb-2">Enviar Mensagem no Twitter/X</h6>
+                        <small class="text-muted d-block mb-3">
+                            Perfil: <strong>@{{ senador.twitter_url|get_twitter_handle }}</strong>
+                        </small>
                         
                         {% if senador.latest_tweet_url %}
-                            <div class="d-grid gap-2">
-                                <a href="{{ senador.latest_tweet_url }}" target="_blank" class="btn btn-outline-secondary btn-sm">
-                                    <i class="fas fa-eye"></i> Ver Último Tweet
-                                </a>
-                                <a href="{{ senador.get_twitter_reply_link }}" target="_blank" class="btn btn-info btn-sm">
-                                    <i class="fas fa-reply"></i> Responder Tweet
-                                </a>
+                            <div class="mt-3">
+                                <label for="messageSelect{{ senador.api_id }}" class="form-label">
+                                    <i class="fas fa-envelope"></i> Escolha uma mensagem para enviar:
+                                </label>
+                                <select class="form-select mb-3" id="messageSelect{{ senador.api_id }}" 
+                                        onchange="handleMessageSelection(this, '{{ senador.api_id }}', 'senador', '{{ senador.latest_tweet_url }}', '@{{ senador.twitter_url|get_twitter_handle }}')">
+                                    <option value="">Selecione uma mensagem...</option>
+                                    {% get_available_messages senador as available_messages %}
+                                    {% for message in available_messages %}
+                                        <option value="{{ message.id }}" 
+                                                data-message="{{ message.message }}" 
+                                                data-hashtags="{{ message.hashtags|default:'' }}" 
+                                                data-mentions="{{ message.mentions|default:'' }}">
+                                            {{ message.title }} ({{ message.character_count }} chars)
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                                
+                                <div id="messagePreview{{ senador.api_id }}" class="alert alert-light d-none">
+                                    <small class="text-muted">Prévia da mensagem:</small>
+                                    <div class="message-preview-text fw-bold"></div>
+                                    <small class="text-muted">Caracteres: <span class="char-count">0</span>/280</small>
+                                </div>
+                                
+                                <button id="sendButton{{ senador.api_id }}" class="btn btn-primary d-none" onclick="sendToTwitter('{{ senador.api_id }}')">
+                                    <i class="fab fa-x-twitter"></i> Enviar para Twitter
+                                </button>
+                            </div>
+                        {% else %}
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                Não é possível enviar mensagens - último tweet não encontrado.
                             </div>
                         {% endif %}
                     </div>
@@ -190,5 +217,93 @@
     font-size: 0.85em;
 }
 </style>
+
+<script>
+// Store generated Twitter links globally
+window.twitterLinks = {};
+
+function handleMessageSelection(selectElement, parliamentarianId, type, latestTweetUrl, twitterHandle) {
+    const messageId = selectElement.value;
+    const previewDiv = document.getElementById(`messagePreview${parliamentarianId}`);
+    const sendButton = document.getElementById(`sendButton${parliamentarianId}`);
+    
+    if (!messageId) {
+        previewDiv.classList.add('d-none');
+        sendButton.classList.add('d-none');
+        return;
+    }
+    
+    // Get message data from selected option
+    const selectedOption = selectElement.options[selectElement.selectedIndex];
+    const message = selectedOption.dataset.message;
+    const hashtags = selectedOption.dataset.hashtags;
+    const mentions = selectedOption.dataset.mentions;
+    
+    // Build formatted message
+    let formattedMessage = `${twitterHandle} ${message}`;
+    if (mentions) formattedMessage += ` ${mentions}`;
+    if (hashtags) formattedMessage += ` ${hashtags}`;
+    
+    // Update preview
+    const previewText = previewDiv.querySelector('.message-preview-text');
+    const charCount = previewDiv.querySelector('.char-count');
+    
+    previewText.textContent = formattedMessage;
+    charCount.textContent = formattedMessage.length;
+    
+    // Show/hide elements
+    previewDiv.classList.remove('d-none');
+    sendButton.classList.remove('d-none');
+    
+    // Generate Twitter link and store it
+    generateTwitterLink(messageId, parliamentarianId, type, formattedMessage, latestTweetUrl);
+}
+
+function generateTwitterLink(messageId, parliamentarianId, type, formattedMessage, latestTweetUrl) {
+    // Extract tweet ID from latest tweet URL
+    const tweetIdMatch = latestTweetUrl.match(/\/status\/(\d+)/);
+    if (!tweetIdMatch) {
+        console.error('Could not extract tweet ID from URL:', latestTweetUrl);
+        return;
+    }
+    
+    const tweetId = tweetIdMatch[1];
+    const encodedMessage = encodeURIComponent(formattedMessage);
+    
+    // Generate Twitter intent URL for reply
+    const twitterLink = `https://twitter.com/intent/tweet?in_reply_to=${tweetId}&text=${encodedMessage}`;
+    
+    // Store the link globally
+    window.twitterLinks[parliamentarianId] = twitterLink;
+}
+
+function sendToTwitter(parliamentarianId) {
+    const twitterLink = window.twitterLinks[parliamentarianId];
+    if (twitterLink) {
+        // Open Twitter in new window
+        window.open(twitterLink, '_blank', 'width=600,height=400,scrollbars=yes,resizable=yes');
+        
+        // Mark message as used (optional - could make AJAX call to update usage stats)
+        const selectElement = document.getElementById(`messageSelect${parliamentarianId}`);
+        const messageId = selectElement.value;
+        if (messageId) {
+            markMessageAsUsed(messageId);
+        }
+    }
+}
+
+function markMessageAsUsed(messageId) {
+    // Optional: Make AJAX call to mark message as used
+    fetch(`/twitter-link/${messageId}/mark-used/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || '',
+            'Content-Type': 'application/json'
+        }
+    }).catch(error => {
+        console.log('Could not mark message as used:', error);
+    });
+}
+</script>
 
 {% endblock %}

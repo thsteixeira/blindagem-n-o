@@ -1,8 +1,9 @@
 from django.shortcuts import render, get_object_or_404
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.core.paginator import Paginator
 from django.db.models import Q
-from .models import Deputado, Senador
+from django.views.decorators.http import require_POST
+from .models import Deputado, Senador, TwitterMessage
 
 # Create your views here.
 
@@ -192,3 +193,60 @@ def senador_detail_view(request, senador_id):
     }
     
     return render(request, 'blindagemapp/senador_detail.html', context)
+
+
+def twitter_messages_list_view(request):
+    """Simple view to list ready Twitter messages for use"""
+    messages = TwitterMessage.objects.filter(status='ready').order_by('priority', '-created_at')
+    
+    context = {
+        'messages': messages,
+    }
+    
+    return render(request, 'blindagemapp/twitter_messages_list.html', context)
+
+
+@require_POST
+def mark_message_used(request, message_id):
+    """Mark a Twitter message as used"""
+    message = get_object_or_404(TwitterMessage, id=message_id)
+    message.mark_as_used()
+    return JsonResponse({'status': 'success', 'times_used': message.times_used})
+
+
+def twitter_message_preview(request, message_id):
+    """Preview how a Twitter message will look"""
+    message = get_object_or_404(TwitterMessage, id=message_id)
+    
+    # Get sample parliamentarians for preview
+    sample_deputy = Deputado.objects.filter(is_active=True, twitter_url__isnull=False).first()
+    sample_senator = Senador.objects.filter(is_active=True, twitter_url__isnull=False).first()
+    
+    previews = []
+    
+    if sample_deputy and message.for_deputies:
+        twitter_handle = sample_deputy.twitter_url.split('/')[-1] if sample_deputy.twitter_url else None
+        formatted_message = message.get_formatted_message(twitter_handle)
+        previews.append({
+            'type': 'Deputado',
+            'name': sample_deputy.nome_parlamentar,
+            'message': formatted_message,
+            'character_count': len(formatted_message)
+        })
+    
+    if sample_senator and message.for_senators:
+        twitter_handle = sample_senator.twitter_url.split('/')[-1] if sample_senator.twitter_url else None
+        formatted_message = message.get_formatted_message(twitter_handle)
+        previews.append({
+            'type': 'Senador',
+            'name': sample_senator.nome_parlamentar,
+            'message': formatted_message,
+            'character_count': len(formatted_message)
+        })
+    
+    context = {
+        'message': message,
+        'previews': previews
+    }
+    
+    return render(request, 'blindagemapp/twitter_message_preview.html', context)
