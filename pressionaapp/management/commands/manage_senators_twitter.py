@@ -1,5 +1,5 @@
 from django.core.management.base import BaseCommand
-from blindagemapp.models import Senador
+from pressionaapp.models import Senador
 import json
 import re
 

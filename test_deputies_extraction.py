@@ -16,7 +16,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'blindagemnao.settings')
 django.setup()
 
 # Now import after Django setup
-from blindagemapp.deputados_extractor import DeputadosDataExtractor
+from pressionaapp.deputados_extractor import DeputadosDataExtractor
 
 def main():
     print("🔍 Starting Twitter extraction for 20 deputies...")

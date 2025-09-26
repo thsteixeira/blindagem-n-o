@@ -3,8 +3,8 @@ Simple command to extract and save congress data using simplified models
 """
 
 from django.core.management.base import BaseCommand
-from blindagemapp.deputados_extractor import DeputadosDataExtractor
-from blindagemapp.senadores_extractor import SenadoresDataExtractor
+from pressionaapp.deputados_extractor import DeputadosDataExtractor
+from pressionaapp.senadores_extractor import SenadoresDataExtractor
 
 
 class Command(BaseCommand):

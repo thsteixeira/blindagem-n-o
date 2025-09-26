@@ -30,7 +30,7 @@ def home_view(request):
         'senadores_com_redes_sociais': senadores_com_redes_sociais,
         'percentual_senadores_com_redes': round((senadores_com_redes_sociais / total_senadores * 100) if total_senadores > 0 else 0, 1)
     }
-    return render(request, 'blindagemapp/home.html', context)
+    return render(request, 'pressionaapp/home.html', context)
 
 def deputados_list_view(request):
     """View para listar todos os deputados com paginação e filtros"""
@@ -96,7 +96,7 @@ def deputados_list_view(request):
         'total_estados': total_estados
     }
     
-    return render(request, 'blindagemapp/deputados_list.html', context)
+    return render(request, 'pressionaapp/deputados_list.html', context)
 
 def deputado_detail_view(request, deputado_id):
     """View para detalhes de um deputado específico"""
@@ -110,7 +110,7 @@ def deputado_detail_view(request, deputado_id):
         'social_media_count': social_media_count
     }
     
-    return render(request, 'blindagemapp/deputado_detail.html', context)
+    return render(request, 'pressionaapp/deputado_detail.html', context)
 
 
 def senadores_list_view(request):
@@ -177,7 +177,7 @@ def senadores_list_view(request):
         'total_estados': total_estados
     }
     
-    return render(request, 'blindagemapp/senadores_list.html', context)
+    return render(request, 'pressionaapp/senadores_list.html', context)
 
 
 def senador_detail_view(request, senador_id):
@@ -192,7 +192,7 @@ def senador_detail_view(request, senador_id):
         'social_media_count': social_media_count
     }
     
-    return render(request, 'blindagemapp/senador_detail.html', context)
+    return render(request, 'pressionaapp/senador_detail.html', context)
 
 
 def twitter_messages_list_view(request):
@@ -203,7 +203,7 @@ def twitter_messages_list_view(request):
         'messages': messages,
     }
     
-    return render(request, 'blindagemapp/twitter_messages_list.html', context)
+    return render(request, 'pressionaapp/twitter_messages_list.html', context)
 
 
 @require_POST
@@ -249,4 +249,4 @@ def twitter_message_preview(request, message_id):
         'previews': previews
     }
     
-    return render(request, 'blindagemapp/twitter_message_preview.html', context)
+    return render(request, 'pressionaapp/twitter_message_preview.html', context)
