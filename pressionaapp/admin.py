@@ -129,7 +129,7 @@ class DeputadoAdmin(admin.ModelAdmin):
     list_display = [
         'nome_parlamentar', 'partido', 'uf',
         'has_twitter', 'has_latest_tweet', 'tweet_count',
-        'social_media_confidence', 'needs_social_media_review', 'is_active'
+        'social_media_source', 'social_media_confidence', 'needs_social_media_review', 'is_active'
     ]
     list_filter = [
         'partido', 'uf', 'is_active', 'social_media_confidence', 
@@ -163,11 +163,12 @@ class DeputadoAdmin(admin.ModelAdmin):
                 'twitter_url', 'latest_tweet_url'
             )
         }),
-        ('Confiança das Redes Sociais', {
+        ('Dados de Redes Sociais (Grok AI)', {
             'fields': (
                 'social_media_source', 'social_media_confidence', 
                 'needs_social_media_review'
             ),
+            'description': 'Informações extraídas via API oficial, scraping do site ou Grok AI',
             'classes': ('collapse',)
         }),
         ('Metadados', {
@@ -213,6 +214,26 @@ class DeputadoAdmin(admin.ModelAdmin):
         return format_html('<br>'.join(tweet_links))
     get_tweets_display.short_description = 'Tweets'
     get_tweets_display.allow_tags = True
+    
+    actions = ['mark_for_social_media_review', 'clear_social_media_review_flag']
+    
+    def mark_for_social_media_review(self, request, queryset):
+        """Mark selected deputies for social media review"""
+        updated = queryset.update(needs_social_media_review=True)
+        self.message_user(
+            request, 
+            f'{updated} deputado(s) marcado(s) para revisão de redes sociais.'
+        )
+    mark_for_social_media_review.short_description = 'Marcar para revisão de redes sociais'
+    
+    def clear_social_media_review_flag(self, request, queryset):
+        """Remove selected deputies from social media review"""
+        updated = queryset.update(needs_social_media_review=False)
+        self.message_user(
+            request, 
+            f'{updated} deputado(s) removido(s) da revisão de redes sociais.'
+        )
+    clear_social_media_review_flag.short_description = 'Remover da revisão de redes sociais'
 
 
 @admin.register(Senador)
@@ -220,7 +241,7 @@ class SenadorAdmin(admin.ModelAdmin):
     list_display = [
         'nome_parlamentar', 'partido', 'uf',
         'has_twitter', 'has_latest_tweet', 'tweet_count',
-        'social_media_confidence', 'needs_social_media_review', 'is_active'
+        'social_media_source', 'social_media_confidence', 'needs_social_media_review', 'is_active'
     ]
     list_filter = [
         'partido', 'uf', 'is_active', 'social_media_confidence', 
@@ -254,11 +275,12 @@ class SenadorAdmin(admin.ModelAdmin):
                 'twitter_url', 'latest_tweet_url'
             )
         }),
-        ('Confiança das Redes Sociais', {
+        ('Dados de Redes Sociais (Grok AI)', {
             'fields': (
                 'social_media_source', 'social_media_confidence', 
                 'needs_social_media_review'
             ),
+            'description': 'Informações extraídas via API oficial, scraping do site ou Grok AI',
             'classes': ('collapse',)
         }),
         ('Metadados', {
@@ -284,3 +306,29 @@ class SenadorAdmin(admin.ModelAdmin):
         content_type = ContentType.objects.get_for_model(obj)
         return Tweet.objects.filter(content_type=content_type, object_id=obj.id).count()
     tweet_count.short_description = 'Tweets'
+    
+    actions = ['mark_for_social_media_review', 'clear_social_media_review_flag']
+    
+    def mark_for_social_media_review(self, request, queryset):
+        """Mark selected senators for social media review"""
+        updated = queryset.update(needs_social_media_review=True)
+        self.message_user(
+            request, 
+            f'{updated} senador(es) marcado(s) para revisão de redes sociais.'
+        )
+    mark_for_social_media_review.short_description = 'Marcar para revisão de redes sociais'
+    
+    def clear_social_media_review_flag(self, request, queryset):
+        """Remove selected senators from social media review"""
+        updated = queryset.update(needs_social_media_review=False)
+        self.message_user(
+            request, 
+            f'{updated} senador(es) removido(s) da revisão de redes sociais.'
+        )
+    clear_social_media_review_flag.short_description = 'Remover da revisão de redes sociais'
+
+
+# Admin site customization
+admin.site.site_header = "Pressiona - Plataforma de Transparência Política"
+admin.site.site_title = "Admin Pressiona"
+admin.site.index_title = "Gerenciamento da Plataforma com IA Grok"
