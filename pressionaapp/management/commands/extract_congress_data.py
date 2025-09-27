@@ -8,7 +8,7 @@ from pressionaapp.senadores_extractor import SenadoresDataExtractor
 
 
 class Command(BaseCommand):
-    help = 'Extract and save congress data (deputies and senators) with simplified models'
+    help = 'Extract and save congress data (deputies and senators) using Grok API integration'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -27,41 +27,29 @@ class Command(BaseCommand):
             help='Limit number of records to process (for testing)',
         )
         parser.add_argument(
-            '--skip-social-media',
-            action='store_true',
-            help='Skip social media extraction for deputies (faster)',
-        )
-        parser.add_argument(
             '--no-update',
             action='store_true',
             help='Do not update existing records',
         )
-        parser.add_argument(
-            '--no-google-fallback',
-            action='store_true',
-            help='Disable Google search fallback for deputies with no social media found on Chamber website (faster but less complete)',
-        )
 
 
     def handle(self, *args, **options):
-        self.stdout.write("🚀 Starting congress data extraction...")
+        self.stdout.write("🚀 Starting congress data extraction with Grok API...")
         
-        extract_social_media = not options['skip_social_media']
         update_existing = not options['no_update']
-        use_google_fallback = not options['no_google_fallback']  # Default True, disable with --no-google-fallback
+        limit = options.get('limit')
         
         if not options['senators_only']:
             self.stdout.write("\n📋 EXTRACTING DEPUTIES...")
-            self.stdout.write(f"   Social media extraction: {'ON' if extract_social_media else 'OFF'}")
-            self.stdout.write(f"   Google search fallback: {'ON' if use_google_fallback else 'OFF'}")
+            self.stdout.write(f"   Grok API integration: ON")
             self.stdout.write(f"   Update existing: {'ON' if update_existing else 'OFF'}")
+            if limit:
+                self.stdout.write(f"   Limit: {limit} records")
             
             try:
                 extractor = DeputadosDataExtractor()
                 created, updated = extractor.extract_deputies(
                     update_existing=update_existing,
-                    extract_social_media=extract_social_media,
-                    use_google_fallback=use_google_fallback,
                     limit=options.get('limit')
                 )
                 self.stdout.write(f"✅ Deputies: {created} created, {updated} updated")
@@ -70,16 +58,16 @@ class Command(BaseCommand):
         
         if not options['deputies_only']:
             self.stdout.write("\n🏛️  EXTRACTING SENATORS...")
-            self.stdout.write(f"   Social media extraction: {'ON' if extract_social_media else 'OFF'}")
-            self.stdout.write(f"   Google search fallback: {'ON' if use_google_fallback else 'OFF'}")
+            self.stdout.write(f"   Grok API integration: ON")
             self.stdout.write(f"   Update existing: {'ON' if update_existing else 'OFF'}")
+            if limit:
+                self.stdout.write(f"   Limit: {limit} records")
             
             try:
                 extractor = SenadoresDataExtractor()
-                created, updated = extractor.extract_all_senators(
+                created, updated = extractor.extract_senators(
                     limit=options.get('limit'),
-                    extract_social_media=extract_social_media,
-                    use_google_fallback=use_google_fallback
+                    update_existing=update_existing
                 )
                 self.stdout.write(f"✅ Senators: {created} created, {updated} updated")
             except Exception as e:

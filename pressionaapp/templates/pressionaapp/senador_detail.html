@@ -146,8 +146,10 @@
                                     API Oficial do Senado
                                 {% elif senador.social_media_source == 'senate_website' %}
                                     Site do Senado Federal
+                                {% elif senador.social_media_source == 'grok_api' %}
+                                    Grok AI (Inteligência Artificial)
                                 {% elif senador.social_media_source == 'google_search' %}
-                                    Busca no Google
+                                    Busca no Google (Legado)
                                 {% else %}
                                     {{ senador.social_media_source }}
                                 {% endif %}
@@ -169,7 +171,7 @@
                             Twitter não encontrado
                         </p>
                         <small class="text-muted">
-                            Dados verificados através da API oficial do Senado e busca no Google.
+                            Dados verificados através da API oficial do Senado, site oficial e Grok AI.
                         </small>
                     </div>
                 {% endif %}

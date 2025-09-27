@@ -116,8 +116,10 @@
                                             API Oficial da Câmara
                                         {% elif deputado.social_media_source == 'chamber_website' %}
                                             Site da Câmara dos Deputados
+                                        {% elif deputado.social_media_source == 'grok_api' %}
+                                            Grok AI (Inteligência Artificial)
                                         {% elif deputado.social_media_source == 'google_search' %}
-                                            Busca no Google
+                                            Busca no Google (Legado)
                                         {% else %}
                                             {{ deputado.social_media_source }}
                                         {% endif %}
@@ -140,7 +142,7 @@
                         <p class="text-muted">Este deputado não possui perfil no Twitter/X identificado em nosso sistema.</p>
                         <small class="text-muted">
                             <i class="fas fa-lightbulb"></i> 
-                            Dados atualizados através da API oficial da Câmara dos Deputados, site oficial e busca no Google.
+                            Dados atualizados através da API oficial da Câmara dos Deputados, site oficial e Grok AI.
                         </small>
                     </div>
                 {% endif %}

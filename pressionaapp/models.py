@@ -1,6 +1,69 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
+from django.contrib.contenttypes.models import ContentType
+from django.contrib.contenttypes.fields import GenericForeignKey
+
+
+class Tweet(models.Model):
+    """
+    Model to store latest tweets from deputies and senators
+    """
+    # Generic relation to link to either Deputado or Senador
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.PositiveIntegerField()
+    parliamentarian = GenericForeignKey('content_type', 'object_id')
+    
+    # Tweet information
+    tweet_url = models.URLField(verbose_name="URL do Tweet")
+    tweet_id = models.CharField(max_length=50, verbose_name="ID do Tweet")
+    
+    # Tweet metadata (extracted from URL or API if available)
+    discovered_at = models.DateTimeField(auto_now_add=True, verbose_name="Descoberto em")
+    position = models.PositiveSmallIntegerField(verbose_name="Posição", 
+                                               help_text="1=mais recente, 5=mais antigo")
+    
+    # Tweet content (optional - can be filled later by API)
+    tweet_text = models.TextField(null=True, blank=True, verbose_name="Texto do Tweet")
+    tweet_date = models.DateTimeField(null=True, blank=True, verbose_name="Data do Tweet")
+    
+    # Metadata
+    is_active = models.BooleanField(default=True, verbose_name="Ativo")
+    needs_content_update = models.BooleanField(default=True, verbose_name="Precisa Atualizar Conteúdo")
+    
+    class Meta:
+        verbose_name = "Tweet"
+        verbose_name_plural = "Tweets"
+        ordering = ['content_type', 'object_id', 'position']
+        indexes = [
+            models.Index(fields=['content_type', 'object_id']),
+            models.Index(fields=['position']),
+            models.Index(fields=['discovered_at']),
+            models.Index(fields=['is_active']),
+        ]
+        # Ensure unique tweets per parliamentarian
+        unique_together = [
+            ('content_type', 'object_id', 'tweet_id'),
+            ('content_type', 'object_id', 'position'),
+        ]
+    
+    def __str__(self):
+        return f"Tweet {self.position} - {self.parliamentarian} ({self.tweet_id})"
+    
+    @property
+    def is_latest(self):
+        """Check if this is the latest tweet (position 1)"""
+        return self.position == 1
+    
+    def get_twitter_reply_link(self, message=None):
+        """Generate a Twitter reply link for this specific tweet"""
+        if not message:
+            parliamentarian_name = getattr(self.parliamentarian, 'nome_parlamentar', 'Parlamentar')
+            message = f"Olá {parliamentarian_name}! Gostaria de dialogar sobre suas propostas. #TransparênciaPolítica"
+        
+        from urllib.parse import quote
+        encoded_message = quote(message)
+        return f"https://twitter.com/intent/tweet?in_reply_to={self.tweet_id}&text={encoded_message}"
 
 
 class TwitterMessage(models.Model):
@@ -185,7 +248,7 @@ class Deputado(models.Model):
     social_media_source = models.CharField(
         max_length=50, null=True, blank=True, 
         verbose_name="Fonte das Redes Sociais",
-        help_text="chamber_website, google_search, or manual"
+        help_text="official_api, chamber_website, grok_api, google_search, or manual"
     )
     social_media_confidence = models.CharField(
         max_length=20, null=True, blank=True,
@@ -249,6 +312,68 @@ class Deputado(models.Model):
         
         encoded_message = quote(message)
         return f"https://twitter.com/intent/tweet?in_reply_to={tweet_id}&text={encoded_message}"
+    
+    def get_tweets(self):
+        """Get all tweets for this deputy ordered by position"""
+        from django.contrib.contenttypes.models import ContentType
+        ct = ContentType.objects.get_for_model(self)
+        return Tweet.objects.filter(content_type=ct, object_id=self.id, is_active=True).order_by('position')
+    
+    def get_latest_tweet(self):
+        """Get the latest tweet (position 1) for this deputy"""
+        tweets = self.get_tweets()
+        return tweets.filter(position=1).first() if tweets else None
+    
+    def update_tweets(self, tweet_data):
+        """Update the 5 latest tweets for this deputy"""
+        from django.contrib.contenttypes.models import ContentType
+        import re
+        
+        ct = ContentType.objects.get_for_model(self)
+        
+        # Clear existing tweets
+        Tweet.objects.filter(content_type=ct, object_id=self.id).delete()
+        
+        # Handle both list of URLs and list of dictionaries
+        if not tweet_data:
+            return
+            
+        # Add new tweets
+        for position, tweet_item in enumerate(tweet_data[:5], 1):
+            # Handle different input formats
+            if isinstance(tweet_item, dict):
+                # Dictionary format from Google search
+                tweet_url = tweet_item.get('url', '')
+                content = tweet_item.get('text', '')
+            else:
+                # String format (legacy)
+                tweet_url = str(tweet_item)
+                content = ''
+            
+            if not tweet_url:
+                continue
+                
+            # Extract tweet ID from URL
+            tweet_id_match = re.search(r'/status/(\d+)', tweet_url)
+            tweet_id = tweet_id_match.group(1) if tweet_id_match else str(position)
+            
+            Tweet.objects.create(
+                content_type=ct,
+                object_id=self.id,
+                tweet_url=tweet_url,
+                tweet_id=tweet_id,
+                tweet_text=content,
+                position=position
+            )
+        
+        # Update latest_tweet_url with the first tweet
+        if tweet_data:
+            first_tweet = tweet_data[0]
+            if isinstance(first_tweet, dict):
+                self.latest_tweet_url = first_tweet.get('url', '')
+            else:
+                self.latest_tweet_url = str(first_tweet)
+            self.save(update_fields=['latest_tweet_url'])
 
 
 class Senador(models.Model):
@@ -276,7 +401,7 @@ class Senador(models.Model):
     social_media_source = models.CharField(
         max_length=50, null=True, blank=True, 
         verbose_name="Fonte das Redes Sociais",
-        help_text="chamber_website, google_search, or manual"
+        help_text="official_api, senate_website, grok_api, google_search, or manual"
     )
     social_media_confidence = models.CharField(
         max_length=20, null=True, blank=True,
@@ -340,3 +465,65 @@ class Senador(models.Model):
         
         encoded_message = quote(message)
         return f"https://twitter.com/intent/tweet?in_reply_to={tweet_id}&text={encoded_message}"
+    
+    def get_tweets(self):
+        """Get all tweets for this senator ordered by position"""
+        from django.contrib.contenttypes.models import ContentType
+        ct = ContentType.objects.get_for_model(self)
+        return Tweet.objects.filter(content_type=ct, object_id=self.id, is_active=True).order_by('position')
+    
+    def get_latest_tweet(self):
+        """Get the latest tweet (position 1) for this senator"""
+        tweets = self.get_tweets()
+        return tweets.filter(position=1).first() if tweets else None
+    
+    def update_tweets(self, tweet_data):
+        """Update the 5 latest tweets for this senator"""
+        from django.contrib.contenttypes.models import ContentType
+        import re
+        
+        ct = ContentType.objects.get_for_model(self)
+        
+        # Clear existing tweets
+        Tweet.objects.filter(content_type=ct, object_id=self.id).delete()
+        
+        # Handle both list of URLs and list of dictionaries
+        if not tweet_data:
+            return
+            
+        # Add new tweets
+        for position, tweet_item in enumerate(tweet_data[:5], 1):
+            # Handle different input formats
+            if isinstance(tweet_item, dict):
+                # Dictionary format from Google search
+                tweet_url = tweet_item.get('url', '')
+                content = tweet_item.get('text', '')
+            else:
+                # String format (legacy)
+                tweet_url = str(tweet_item)
+                content = ''
+            
+            if not tweet_url:
+                continue
+                
+            # Extract tweet ID from URL
+            tweet_id_match = re.search(r'/status/(\d+)', tweet_url)
+            tweet_id = tweet_id_match.group(1) if tweet_id_match else str(position)
+            
+            Tweet.objects.create(
+                content_type=ct,
+                object_id=self.id,
+                tweet_url=tweet_url,
+                tweet_id=tweet_id,
+                tweet_text=content,
+                position=position
+            )
+        
+        # Update latest_tweet_url with the first tweet
+        if tweet_data:
+            first_tweet = tweet_data[0]
+            if isinstance(first_tweet, dict):
+                self.latest_tweet_url = first_tweet.get('url', '')
+            else:
+                self.latest_tweet_url = str(first_tweet)
+            self.save(update_fields=['latest_tweet_url'])
