@@ -8,7 +8,7 @@ from pressionaapp.senadores_extractor import SenadoresDataExtractor
 
 
 class Command(BaseCommand):
-    help = 'Extract and save congress data (deputies and senators) using Grok API integration'
+    help = 'Extract and save congress data (deputies and senators) with Grok API profile discovery'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -34,14 +34,14 @@ class Command(BaseCommand):
 
 
     def handle(self, *args, **options):
-        self.stdout.write("🚀 Starting congress data extraction with Grok API...")
+        self.stdout.write("🚀 Starting congress data extraction with Grok API profile discovery...")
         
         update_existing = not options['no_update']
         limit = options.get('limit')
         
         if not options['senators_only']:
             self.stdout.write("\n📋 EXTRACTING DEPUTIES...")
-            self.stdout.write(f"   Grok API integration: ON")
+            self.stdout.write(f"   Grok API profile discovery: ON")
             self.stdout.write(f"   Update existing: {'ON' if update_existing else 'OFF'}")
             if limit:
                 self.stdout.write(f"   Limit: {limit} records")
@@ -58,7 +58,7 @@ class Command(BaseCommand):
         
         if not options['deputies_only']:
             self.stdout.write("\n🏛️  EXTRACTING SENATORS...")
-            self.stdout.write(f"   Grok API integration: ON")
+            self.stdout.write(f"   Grok API profile discovery: ON")
             self.stdout.write(f"   Update existing: {'ON' if update_existing else 'OFF'}")
             if limit:
                 self.stdout.write(f"   Limit: {limit} records")

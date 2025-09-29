@@ -1,10 +1,9 @@
 """
-Refactored extractor for active Brazilian deputies using Grok API
+Extractor for active Brazilian deputies using Grok API for profile discovery
 New Flow:
 1. Search Camara dos Deputados API 
 2. Scrape official web page
 3. If no Twitter found, use Grok API fallback
-4. In all cases, search for latest tweets using Grok API
 """
 
 import requests
@@ -25,8 +24,8 @@ logger = logging.getLogger(__name__)
 
 class DeputadosDataExtractor:
     """
-    Refactored extractor for active Brazilian deputies with Grok API integration
-    Follows the new 4-step flow for Twitter discovery and tweet extraction
+    Extractor for active Brazilian deputies with Grok API integration
+    Focuses on Twitter profile discovery using 3-step flow
     """
     
     def __init__(self):
@@ -43,6 +42,24 @@ class DeputadosDataExtractor:
         except ValueError as e:
             logger.error(f"Failed to initialize Grok service: {e}")
             self.grok_service = None
+    
+    def _clean_twitter_url(self, url: str) -> str:
+        """Clean Twitter URL to standardized format without @ or www"""
+        if not url:
+            return url
+            
+        import re
+        # Remove protocol, www, and extract clean username
+        pattern = r'(?:https?://)?(?:www\.)?(?:twitter\.com|x\.com)/(?:@)?(\w+)(?:\?.*)?(?:#.*)?'
+        match = re.match(pattern, url.strip())
+        
+        if match:
+            username = match.group(1)
+            # Return clean X.com URL format
+            return f"https://x.com/{username}"
+        
+        # If pattern doesn't match, return original URL
+        return url.strip()
         
     def get_current_deputies(self):
         """
@@ -120,18 +137,16 @@ class DeputadosDataExtractor:
     def extract_twitter_info(self, deputado_id: int, nome: str = None, nome_parlamentar: str = None, 
                            partido: str = None, uf: str = None) -> Dict[str, any]:
         """
-        Extract Twitter account and tweets using the new 4-step flow:
+        Extract Twitter account using the 3-step flow:
         1. Try Chamber API
         2. Try Chamber website scraping
         3. Try Grok API fallback (if no Twitter found)
-        4. Use Grok API to get latest tweets (always)
         
         Returns:
-            Dictionary containing Twitter URL, tweets, and metadata
+            Dictionary containing Twitter URL and metadata
         """
         result = {
             'twitter_url': None,
-            'tweets_data': [],
             'metadata': {
                 'source': None,
                 'confidence': None,
@@ -155,7 +170,7 @@ class DeputadosDataExtractor:
                     url_lower = url_item.lower()
                     
                     if 'twitter.com' in url_lower or 'x.com' in url_lower:
-                        result['twitter_url'] = url_item
+                        result['twitter_url'] = self._clean_twitter_url(url_item)
                         result['metadata']['source'] = 'official_api'
                         result['metadata']['confidence'] = 'high'
                         result['metadata']['details'] = 'Found Twitter in official Chamber API'
@@ -185,9 +200,9 @@ class DeputadosDataExtractor:
                         twitter_handle = twitter_widget.get('data-urlTwitter')
                         if twitter_handle:
                             if not twitter_handle.startswith('http'):
-                                result['twitter_url'] = f"https://twitter.com/{twitter_handle.lstrip('@')}"
+                                result['twitter_url'] = self._clean_twitter_url(f"https://x.com/{twitter_handle.lstrip('@')}")
                             else:
-                                result['twitter_url'] = twitter_handle
+                                result['twitter_url'] = self._clean_twitter_url(twitter_handle)
                             
                             result['metadata']['source'] = 'chamber_website'
                             result['metadata']['confidence'] = 'high'
@@ -201,7 +216,7 @@ class DeputadosDataExtractor:
                     for link in twitter_links:
                         href = link.get('href', '')
                         if not self._is_official_camara_link(href):
-                            result['twitter_url'] = href
+                            result['twitter_url'] = self._clean_twitter_url(href)
                             result['metadata']['source'] = 'chamber_website'
                             result['metadata']['confidence'] = 'medium'
                             result['metadata']['details'] = 'Found Twitter link in Chamber website'
@@ -233,7 +248,7 @@ class DeputadosDataExtractor:
                 )
                 
                 if grok_profile:
-                    result['twitter_url'] = grok_profile['url']
+                    result['twitter_url'] = self._clean_twitter_url(grok_profile['url'])
                     result['metadata']['source'] = 'grok_api'
                     result['metadata']['confidence'] = 'medium' if grok_profile['confidence_score'] > 0.7 else 'low'
                     result['metadata']['needs_review'] = grok_profile['confidence_score'] < 0.8
@@ -245,50 +260,12 @@ class DeputadosDataExtractor:
             except Exception as e:
                 logger.warning(f"Error in Step 3 (Grok fallback): {str(e)}")
         
-        # STEP 4: Always try to get latest tweets using Grok API (if we have a Twitter URL)
-        if result['twitter_url'] and self.grok_service:
-            logger.info(f"Step 4: Getting latest tweets via Grok API for {nome_parlamentar}")
-            try:
-                tweets = self.grok_service.get_latest_tweets(
-                    twitter_url=result['twitter_url'],
-                    max_tweets=5,
-                    days_back=180  # 6 months
-                )
-                
-                if tweets:
-                    # Convert Grok tweet format to our expected format
-                    result['tweets_data'] = []
-                    for tweet in tweets:
-                        tweet_data = {
-                            'url': tweet.get('url'),
-                            'text': tweet.get('text'),
-                            'parliamentarian': nome_parlamentar,
-                            'found_via': 'grok_api',
-                            'created_at': tweet.get('created_at'),
-                            'tweet_id': tweet.get('tweet_id'),
-                            'metrics': tweet.get('metrics', {}),
-                            'grok_metadata': {
-                                'username': tweet.get('username'),
-                                'display_name': tweet.get('display_name'),
-                                'is_retweet': tweet.get('is_retweet', False),
-                                'is_reply': tweet.get('is_reply', False)
-                            }
-                        }
-                        result['tweets_data'].append(tweet_data)
-                    
-                    result['metadata']['extraction_method'].append('grok_tweets')
-                    logger.info(f"✓ Retrieved {len(tweets)} tweets via Grok API")
-                else:
-                    logger.info(f"No tweets found via Grok API for {nome_parlamentar}")
-                    
-            except Exception as e:
-                logger.warning(f"Error in Step 4 (Grok tweets): {str(e)}")
+
         
         # Log final result summary
         method_summary = " → ".join(result['metadata']['extraction_method'])
-        logger.info(f"Extraction complete for {nome_parlamentar}: {method_summary}")
+        logger.info(f"Profile extraction complete for {nome_parlamentar}: {method_summary}")
         logger.info(f"  Twitter URL: {'✓' if result['twitter_url'] else '✗'}")
-        logger.info(f"  Tweets found: {len(result['tweets_data'])}")
         logger.info(f"  Source: {result['metadata']['source']}")
         logger.info(f"  Confidence: {result['metadata']['confidence']}")
         
@@ -334,15 +311,20 @@ class DeputadosDataExtractor:
                     if not api_id:
                         continue
                     
-                    nome = deputy_data.get('nome', '')
-                    nome_parlamentar = deputy_data.get('nome', '')
+                    nome_parlamentar = deputy_data.get('nome', '')  # Parliamentary name
                     partido = deputy_data.get('siglaPartido', '')
                     uf = deputy_data.get('siglaUf', '')
                     
                     logger.info(f"\n[{i}/{len(deputies_data)}] Processing: {nome_parlamentar} ({partido}-{uf})")
                     
-                    # Get detailed deputy information (phone, etc.)
+                    # Get detailed deputy information (including real name)
                     deputy_details = self.get_deputy_details(api_id)
+                    nome = nome_parlamentar  # Default fallback
+                    if deputy_details:
+                        # Use the full civil name for more accurate Grok searches
+                        nome_civil = deputy_details.get('nomeCivil', '')
+                        if nome_civil:
+                            nome = nome_civil.title()  # Convert to title case for better readability
                     phone = None
                     if deputy_details:
                         office_info = deputy_details.get('ultimoStatus', {}).get('gabinete', {})
@@ -358,7 +340,6 @@ class DeputadosDataExtractor:
                     )
                     
                     twitter_url = extraction_result.get('twitter_url')
-                    tweets_data = extraction_result.get('tweets_data', [])
                     metadata = extraction_result.get('metadata', {})
                     
                     # Get or create deputy
@@ -412,13 +393,7 @@ class DeputadosDataExtractor:
                         deputy.is_active = True
                         deputy.save()
                     
-                    # Save tweets if any were found
-                    if tweets_data:
-                        try:
-                            deputy.update_tweets(tweets_data)
-                            logger.info(f"✓ Saved {len(tweets_data)} tweets for {deputy.nome_parlamentar}")
-                        except Exception as tweet_save_e:
-                            logger.error(f"✗ Error saving tweets for {deputy.nome_parlamentar}: {str(tweet_save_e)}")
+
                     
                     # Add delay to respect API rate limits
                     if self.grok_service and i % 10 == 0:  # Every 10 requests

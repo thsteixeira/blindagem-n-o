@@ -127,8 +127,8 @@ class TweetAdmin(admin.ModelAdmin):
 @admin.register(Deputado)
 class DeputadoAdmin(admin.ModelAdmin):
     list_display = [
-        'nome_parlamentar', 'partido', 'uf',
-        'has_twitter', 'has_latest_tweet', 'tweet_count',
+        'nome_parlamentar', 'has_twitter', 'partido', 'uf',
+        'latest_tweet_link', 'tweet_count',
         'social_media_source', 'social_media_confidence', 'needs_social_media_review', 'is_active'
     ]
     list_filter = [
@@ -180,14 +180,59 @@ class DeputadoAdmin(admin.ModelAdmin):
     )
     
     def has_twitter(self, obj):
-        return bool(obj.twitter_url)
-    has_twitter.boolean = True
+        if obj.twitter_url:
+            from django.utils.html import format_html
+            import re
+            
+            # Extract username from Twitter/X URL using regex
+            # Handle both twitter.com and x.com, with or without @ in URL
+            pattern = r'(?:https?://)?(?:www\.)?(?:twitter\.com|x\.com)/(?:@)?(\w+)(?:\?.*)?'
+            match = re.match(pattern, obj.twitter_url)
+            
+            if match:
+                username = match.group(1)
+                return format_html(
+                    '<a href="{}" target="_blank">@{}</a>',
+                    obj.twitter_url,
+                    username
+                )
+            else:
+                # Fallback: just show the URL if pattern doesn't match
+                return format_html(
+                    '<a href="{}" target="_blank">{}</a>',
+                    obj.twitter_url,
+                    obj.twitter_url
+                )
+        return '-'
     has_twitter.short_description = 'Twitter'
+    has_twitter.allow_tags = True
     
-    def has_latest_tweet(self, obj):
-        return bool(obj.latest_tweet_url)
-    has_latest_tweet.boolean = True
-    has_latest_tweet.short_description = 'Último Tweet'
+    def latest_tweet_link(self, obj):
+        if obj.latest_tweet_url:
+            from django.utils.html import format_html
+            import re
+            
+            # Extract tweet ID from URL for display
+            tweet_id_match = re.search(r'/status/(\d+)', obj.latest_tweet_url)
+            if tweet_id_match:
+                tweet_id = tweet_id_match.group(1)
+                # Show short tweet ID as clickable link
+                return format_html(
+                    '<a href="{}" target="_blank">Tweet #{}</a>',
+                    obj.latest_tweet_url,
+                    tweet_id[-6:]  # Last 6 digits of tweet ID
+                )
+            else:
+                # Fallback: show "Tweet" if URL doesn't match pattern
+                return format_html(
+                    '<a href="{}" target="_blank">Tweet</a>',
+                    obj.latest_tweet_url
+                )
+        # Show red X when no latest tweet
+        from django.utils.html import format_html
+        return format_html('<span style="color: red; font-weight: bold;">✗</span>')
+    latest_tweet_link.short_description = 'Último Tweet'
+    latest_tweet_link.allow_tags = True
     
     def tweet_count(self, obj):
         from django.contrib.contenttypes.models import ContentType
@@ -239,8 +284,8 @@ class DeputadoAdmin(admin.ModelAdmin):
 @admin.register(Senador)
 class SenadorAdmin(admin.ModelAdmin):
     list_display = [
-        'nome_parlamentar', 'partido', 'uf',
-        'has_twitter', 'has_latest_tweet', 'tweet_count',
+        'nome_parlamentar', 'has_twitter', 'partido', 'uf',
+        'latest_tweet_link', 'tweet_count',
         'social_media_source', 'social_media_confidence', 'needs_social_media_review', 'is_active'
     ]
     list_filter = [
@@ -292,14 +337,59 @@ class SenadorAdmin(admin.ModelAdmin):
     )
     
     def has_twitter(self, obj):
-        return bool(obj.twitter_url)
-    has_twitter.boolean = True
+        if obj.twitter_url:
+            from django.utils.html import format_html
+            import re
+            
+            # Extract username from Twitter/X URL using regex
+            # Handle both twitter.com and x.com, with or without @ in URL
+            pattern = r'(?:https?://)?(?:www\.)?(?:twitter\.com|x\.com)/(?:@)?(\w+)(?:\?.*)?'
+            match = re.match(pattern, obj.twitter_url)
+            
+            if match:
+                username = match.group(1)
+                return format_html(
+                    '<a href="{}" target="_blank">@{}</a>',
+                    obj.twitter_url,
+                    username
+                )
+            else:
+                # Fallback: just show the URL if pattern doesn't match
+                return format_html(
+                    '<a href="{}" target="_blank">{}</a>',
+                    obj.twitter_url,
+                    obj.twitter_url
+                )
+        return '-'
     has_twitter.short_description = 'Twitter'
+    has_twitter.allow_tags = True
     
-    def has_latest_tweet(self, obj):
-        return bool(obj.latest_tweet_url)
-    has_latest_tweet.boolean = True
-    has_latest_tweet.short_description = 'Último Tweet'
+    def latest_tweet_link(self, obj):
+        if obj.latest_tweet_url:
+            from django.utils.html import format_html
+            import re
+            
+            # Extract tweet ID from URL for display
+            tweet_id_match = re.search(r'/status/(\d+)', obj.latest_tweet_url)
+            if tweet_id_match:
+                tweet_id = tweet_id_match.group(1)
+                # Show short tweet ID as clickable link
+                return format_html(
+                    '<a href="{}" target="_blank">Tweet #{}</a>',
+                    obj.latest_tweet_url,
+                    tweet_id[-6:]  # Last 6 digits of tweet ID
+                )
+            else:
+                # Fallback: show "Tweet" if URL doesn't match pattern
+                return format_html(
+                    '<a href="{}" target="_blank">Tweet</a>',
+                    obj.latest_tweet_url
+                )
+        # Show red X when no latest tweet
+        from django.utils.html import format_html
+        return format_html('<span style="color: red; font-weight: bold;">✗</span>')
+    latest_tweet_link.short_description = 'Último Tweet'
+    latest_tweet_link.allow_tags = True
     
     def tweet_count(self, obj):
         from django.contrib.contenttypes.models import ContentType

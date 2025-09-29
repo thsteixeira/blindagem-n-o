@@ -1,6 +1,6 @@
 """
-Grok API Service for Twitter/X operations
-Handles profile discovery and tweet extraction using Grok API
+Grok API Service for Twitter/X profile discovery
+Handles Twitter profile discovery using Grok API with live search
 """
 
 import requests
@@ -8,7 +8,6 @@ import logging
 from typing import Dict, List, Optional
 from django.conf import settings
 import re
-from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +19,8 @@ class GrokAPIError(Exception):
 
 class GrokTwitterService:
     """
-    Service class for Twitter/X operations using Grok API
-    Handles both profile discovery and tweet extraction
+    Service class for Twitter/X profile discovery using Grok API
+    Focuses on finding and verifying Twitter profiles of Brazilian politicians
     """
     
     def __init__(self):
@@ -42,7 +41,7 @@ class GrokTwitterService:
         
         # Rate limiting and retry configuration
         self.max_retries = 3
-        self.retry_delay = 1  # seconds
+        self.retry_delay = 2  # Base for exponential backoff
     
     def _make_request(self, method: str, url: str, **kwargs) -> Dict:
         """
@@ -71,17 +70,17 @@ class GrokTwitterService:
                 elif response.status_code == 403:
                     raise GrokAPIError("Access forbidden - check API permissions")
                 elif response.status_code == 429:
-                    # Rate limited - wait and retry
+                    # Rate limited - wait and retry with exponential backoff
                     if attempt < self.max_retries - 1:
                         import time
-                        time.sleep(self.retry_delay * (attempt + 1))
+                        time.sleep(self.retry_delay ** (attempt + 1))  # 2, 4, 8 seconds
                         continue
                     raise GrokAPIError("Rate limit exceeded - please try again later")
                 elif response.status_code >= 500:
-                    # Server error - retry
+                    # Server error - retry with exponential backoff
                     if attempt < self.max_retries - 1:
                         import time
-                        time.sleep(self.retry_delay * (attempt + 1))
+                        time.sleep(self.retry_delay ** (attempt + 1))  # 2, 4, 8 seconds
                         continue
                     raise GrokAPIError(f"Server error: {response.status_code}")
                 else:
@@ -111,73 +110,192 @@ class GrokTwitterService:
             Dictionary with profile information or None if not found
         """
         try:
-            # Build search query for Grok
+            # Build enhanced search query similar to successful browser query
             search_terms = []
             
-            # Add names
+            # Add names in quotes for exact matching
             if nome_parlamentar:
                 search_terms.append(f'"{nome_parlamentar}"')
             if nome and nome.lower() != nome_parlamentar.lower():
                 search_terms.append(f'"{nome}"')
             
-            # Add role context
-            search_terms.append(role)
+            # Add role and Brazilian context
+            search_terms.append(f"{role} brasileiro")
             
             # Add additional context if provided
             if additional_context:
                 search_terms.append(additional_context)
             
-            # Add platform context
+            # Add platform and official context (Portuguese + English)
             search_terms.extend(["Twitter", "X.com", "perfil oficial", "conta oficial"])
             
             query = " ".join(search_terms)
             
-            logger.info(f"Searching for Twitter profile via Grok: {query}")
+            logger.info(f"Searching for Twitter profile via Grok with live search: {query}")
             
-            # TODO: Replace with actual Grok API endpoint and parameters
-            # This is a placeholder structure based on common AI API patterns
-            api_payload = {
-                "query": f"Find the official Twitter/X profile for {query}. Return only verified or highly likely official accounts.",
-                "task": "profile_search",
-                "parameters": {
-                    "platform": "twitter",
-                    "search_type": "profile",
-                    "verification_level": "high",
-                    "max_results": 3
-                }
-            }
-            
-            # TODO: Replace with actual Grok API endpoint
-            # response = self._make_request('POST', 'https://api.grok.com/v1/search', json=api_payload)
-            
-            # PLACEHOLDER: Mock response structure for development
-            # Replace this entire section with actual Grok API call
-            logger.warning("Using mock Grok API response - replace with actual API call")
-            mock_response = {
-                "status": "success",
-                "results": [
-                    {
-                        "platform": "twitter", 
-                        "url": f"https://twitter.com/{nome_parlamentar.lower().replace(' ', '')}",
-                        "username": nome_parlamentar.lower().replace(' ', ''),
-                        "display_name": nome_parlamentar,
-                        "verified": False,
-                        "confidence_score": 0.85,
-                        "profile_description": f"Deputado - {nome_parlamentar}",
-                        "follower_count": 1000,
-                        "following_count": 500,
-                        "tweet_count": 150
+            # Real Grok API call for Twitter profile search
+            try:
+                # Enhanced system message emphasizing official accounts
+                system_message = """You are a search assistant specialized in finding OFFICIAL social media profiles of Brazilian politicians.
+
+IMPORTANT: Always prioritize OFFICIAL political accounts over personal ones. Use tools like x_user_search or x_keyword_search for precise X/Twitter lookups. Look for verified profiles with political bios and government content.
+
+Use live search with site:x.com for real-time data. Return ONLY valid JSON with actual data. No extra text, markdown, or explanations."""
+
+                # Enhanced user message with Portuguese context (like successful browser query)
+                user_message = f"""Encontre o perfil oficial no X (antigo Twitter) do político brasileiro:
+
+Nome: {nome}
+Nome parlamentar: {nome_parlamentar}
+Cargo: {role}
+{f"Contexto: {additional_context}" if additional_context else ""}
+
+Procure por:
+- Contas verificadas com bio mencionando cargo/estado/partido
+- Atividade política recente
+- Use ferramentas como x_user_search para o username exato
+
+Responda APENAS com o JSON na estrutura exata, envolto em <json> </json> tags:
+<json>
+{{
+    "status": "success",
+    "results": [
+        {{
+            "platform": "twitter",
+            "url": "https://x.com/username",
+            "username": "username_without_@",
+            "display_name": "Display Name",
+            "verified": true/false,
+            "confidence_score": 0.0-1.0,
+            "profile_description": "bio text",
+            "follower_count": number,
+            "following_count": number,
+            "tweet_count": number
+        }}
+    ]
+}}
+</json>
+
+Se não encontrado, use {{"status": "not_found", "results": []}}."""
+
+                # API call with optimized parameters for accuracy
+                api_payload = {
+                    "model": "grok-4-fast-reasoning",  # More precise for complex searches
+                    "messages": [
+                        {
+                            "role": "system", 
+                            "content": system_message
+                        },
+                        {
+                            "role": "user",
+                            "content": user_message
+                        }
+                    ],
+                    "temperature": 0.1,
+                    "max_tokens": 1500,  # Increased for longer responses
+                    "search_parameters": {
+                        "enabled": True,
+                        "num_sources": 5  # Limit sources for cost control and focus
                     }
-                ]
-            }
+                }
+                
+                # Make API call with live search enabled
+                logger.info("Making Grok API call with live search enabled...")
+                response = self._make_request('POST', 'https://api.x.ai/v1/chat/completions', json=api_payload)
+                
+                # Parse the response to extract JSON from Grok's response
+                content = response.get('choices', [{}])[0].get('message', {}).get('content', '')
+                
+                logger.info(f"Grok profile response: {content}")
+                
+                # Check if response is empty or just whitespace
+                if not content or not content.strip():
+                    logger.warning("Grok API returned empty response")
+                    raise ValueError("Empty response from Grok API")
+                
+                # Enhanced JSON parsing with XML tag handling
+                import json
+                import re
+                
+                # Strip XML tags or markdown
+                content = content.strip()
+                if content.startswith('<json>') and content.endswith('</json>'):
+                    content = content.replace('<json>', '').replace('</json>', '').strip()
+                elif content.startswith('```json') and content.endswith('```'):
+                    content = content.strip('```json').strip('```').strip()
+                
+                try:
+                    parsed_json = json.loads(content)
+                    logger.info(f"Parsed JSON: {parsed_json}")
+                except json.JSONDecodeError:
+                    # Fallback to regex extraction
+                    json_match = re.search(r'\{.*\}', content, re.DOTALL)
+                    if json_match:
+                        try:
+                            parsed_json = json.loads(json_match.group())
+                            logger.info(f"Parsed JSON via regex: {parsed_json}")
+                        except json.JSONDecodeError as e:
+                            logger.error(f"Failed to parse JSON from Grok response: {e}")
+                            raise ValueError(f"Invalid JSON in Grok response: {e}")
+                    else:
+                        raise ValueError("No valid JSON found in Grok response")
+                
+                # Check if this is a direct profile response (simple format)
+                if 'username' in parsed_json:
+                    # Generate URL from username if not provided
+                    username = parsed_json.get("username")
+                    profile_url = parsed_json.get("url", f"https://x.com/{username}")
+                    
+                    # Convert simple response to expected format
+                    api_response = {
+                        "status": "success",
+                        "results": [{
+                            "platform": "twitter",
+                            "url": profile_url,
+                            "username": username,
+                            "display_name": parsed_json.get("display_name", ""),
+                            "verified": parsed_json.get("verified", False),
+                            "confidence_score": 0.9,  # High confidence for direct matches
+                            "profile_description": parsed_json.get("bio", ""),
+                            "follower_count": parsed_json.get("follower_count", parsed_json.get("followers", 0)),
+                            "following_count": parsed_json.get("following_count", parsed_json.get("following", 0)),
+                            "tweet_count": parsed_json.get("tweet_count", parsed_json.get("tweets", 0))
+                        }]
+                    }
+                else:
+                    # Use original format if it matches expected structure
+                    api_response = parsed_json
+                    
+            except requests.exceptions.Timeout:
+                logger.error("Grok API request timed out (live search with x_user_search may be slow)")
+                api_response = {"status": "timeout", "results": []}
+            except requests.exceptions.ConnectionError:
+                logger.error("Failed to connect to Grok API")
+                api_response = {"status": "connection_error", "results": []}
+            except GrokAPIError as e:
+                logger.error(f"Grok API error (check live search permissions): {str(e)}")
+                api_response = {"status": "api_error", "results": []}
+            except Exception as e:
+                logger.error(f"Unexpected error in profile search with live search: {str(e)}")
+                api_response = {"status": "error", "results": []}
             
             # Process Grok response
-            if mock_response.get("status") == "success" and mock_response.get("results"):
-                results = mock_response["results"]
+            if api_response.get("status") == "success" and api_response.get("results"):
+                results = api_response["results"]
                 
-                # Filter and sort by confidence
+                # Filter and prioritize verified/official accounts
                 twitter_profiles = [r for r in results if r.get("platform") == "twitter"]
-                twitter_profiles.sort(key=lambda x: x.get("confidence_score", 0), reverse=True)
+                
+                # Prioritize verified accounts first
+                verified_profiles = [r for r in twitter_profiles if r.get("verified", False)]
+                unverified_profiles = [r for r in twitter_profiles if not r.get("verified", False)]
+                
+                # Sort each group by confidence
+                verified_profiles.sort(key=lambda x: x.get("confidence_score", 0), reverse=True)
+                unverified_profiles.sort(key=lambda x: x.get("confidence_score", 0), reverse=True)
+                
+                # Combine: verified first, then unverified
+                twitter_profiles = verified_profiles + unverified_profiles
                 
                 if twitter_profiles:
                     best_match = twitter_profiles[0]
@@ -210,172 +328,6 @@ class GrokTwitterService:
             logger.error(f"Unexpected error finding Twitter profile for {nome_parlamentar}: {str(e)}")
             return None
     
-    def get_latest_tweets(self, username: str = None, twitter_url: str = None, 
-                         max_tweets: int = 5, days_back: int = 180) -> List[Dict[str, any]]:
-        """
-        Get latest tweets from a Twitter profile using Grok API
-        
-        Args:
-            username: Twitter username (without @)
-            twitter_url: Full Twitter URL (alternative to username) 
-            max_tweets: Maximum number of tweets to retrieve
-            days_back: How many days back to search for tweets
-            
-        Returns:
-            List of tweet dictionaries
-        """
-        try:
-            # Extract username from URL if needed
-            if not username and twitter_url:
-                match = re.search(r'(?:twitter\.com/|x\.com/)([^/?]+)', twitter_url)
-                if match:
-                    username = match.group(1)
-                else:
-                    logger.error(f"Could not extract username from URL: {twitter_url}")
-                    return []
-            
-            if not username:
-                logger.warning("No username provided for tweet extraction")
-                return []
-            
-            logger.info(f"Fetching latest tweets for @{username} via Grok API")
-            
-            # Calculate date range
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=days_back)
-            
-            # TODO: Replace with actual Grok API endpoint and parameters
-            api_payload = {
-                "query": f"Get the latest {max_tweets} tweets from @{username} from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}",
-                "task": "tweet_extraction",
-                "parameters": {
-                    "username": username,
-                    "max_results": max_tweets,
-                    "start_date": start_date.isoformat(),
-                    "end_date": end_date.isoformat(),
-                    "include_retweets": False,
-                    "include_replies": False
-                }
-            }
-            
-            # TODO: Replace with actual Grok API endpoint
-            # response = self._make_request('POST', 'https://api.grok.com/v1/tweets', json=api_payload)
-            
-            # PLACEHOLDER: Mock response structure for development
-            logger.warning("Using mock Grok API response - replace with actual API call")
-            mock_response = {
-                "status": "success",
-                "tweets": [
-                    {
-                        "id": "1234567890123456789",
-                        "url": f"https://twitter.com/{username}/status/1234567890123456789",
-                        "text": f"Esta é uma tweet de exemplo do {username}. #Política #Brasil",
-                        "created_at": "2025-09-20T10:30:00Z",
-                        "author": {
-                            "username": username,
-                            "display_name": username.title()
-                        },
-                        "metrics": {
-                            "likes": 25,
-                            "retweets": 8,
-                            "replies": 3
-                        },
-                        "is_retweet": False,
-                        "is_reply": False
-                    },
-                    {
-                        "id": "1234567890123456790",
-                        "url": f"https://twitter.com/{username}/status/1234567890123456790",
-                        "text": f"Outra mensagem importante sobre políticas públicas do {username}.",
-                        "created_at": "2025-09-18T15:45:00Z",
-                        "author": {
-                            "username": username,
-                            "display_name": username.title()
-                        },
-                        "metrics": {
-                            "likes": 42,
-                            "retweets": 15,
-                            "replies": 7
-                        },
-                        "is_retweet": False,
-                        "is_reply": False
-                    }
-                ]
-            }
-            
-            # Process Grok response
-            if mock_response.get("status") == "success" and mock_response.get("tweets"):
-                tweets = []
-                
-                for tweet_data in mock_response["tweets"]:
-                    tweet_info = {
-                        'tweet_id': tweet_data.get('id'),
-                        'url': tweet_data.get('url'),
-                        'text': tweet_data.get('text'),
-                        'created_at': tweet_data.get('created_at'),
-                        'username': tweet_data.get('author', {}).get('username'),
-                        'display_name': tweet_data.get('author', {}).get('display_name'),
-                        'metrics': tweet_data.get('metrics', {}),
-                        'is_retweet': tweet_data.get('is_retweet', False),
-                        'is_reply': tweet_data.get('is_reply', False),
-                        'source': 'grok_api'
-                    }
-                    tweets.append(tweet_info)
-                
-                logger.info(f"Retrieved {len(tweets)} tweets for @{username} via Grok API")
-                return tweets
-            
-            logger.info(f"No tweets found for @{username} via Grok API")
-            return []
-            
-        except GrokAPIError as e:
-            logger.error(f"Grok API error fetching tweets for @{username}: {str(e)}")
-            return []
-        except Exception as e:
-            logger.error(f"Unexpected error fetching tweets for @{username}: {str(e)}")
-            return []
-    
-    def search_tweets_by_content(self, search_query: str, max_results: int = 10, 
-                                days_back: int = 30) -> List[Dict[str, any]]:
-        """
-        Search for tweets by content using Grok API
-        
-        Args:
-            search_query: Search query for tweet content
-            max_results: Maximum number of results
-            days_back: How many days back to search
-            
-        Returns:
-            List of matching tweets
-        """
-        try:
-            logger.info(f"Searching tweets by content via Grok: {search_query}")
-            
-            # Calculate date range
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=days_back)
-            
-            # TODO: Replace with actual Grok API endpoint
-            api_payload = {
-                "query": search_query,
-                "task": "content_search",
-                "parameters": {
-                    "max_results": max_results,
-                    "start_date": start_date.isoformat(),
-                    "end_date": end_date.isoformat(),
-                    "language": "pt",  # Portuguese tweets
-                    "country": "BR"    # Brazil
-                }
-            }
-            
-            # TODO: Implement actual API call
-            logger.warning("Tweet content search not yet implemented - placeholder")
-            return []
-            
-        except Exception as e:
-            logger.error(f"Error searching tweets by content: {str(e)}")
-            return []
-    
     def verify_profile_authenticity(self, profile_url: str, nome: str, nome_parlamentar: str) -> Dict[str, any]:
         """
         Use Grok AI to verify if a Twitter profile is authentic for a given person
@@ -391,33 +343,47 @@ class GrokTwitterService:
         try:
             logger.info(f"Verifying profile authenticity via Grok: {profile_url}")
             
-            # TODO: Implement actual Grok verification call
-            verification_prompt = f"""
-            Analyze this Twitter profile URL: {profile_url}
+            # Real Grok API call for verification
+            system_message = """You are an authenticity verifier for X profiles of Brazilian politicians. Analyze the profile and return ONLY JSON with verification details."""
             
-            Person details:
-            - Full name: {nome}
-            - Parliamentary name: {nome_parlamentar}
+            user_message = f"""Analise o perfil: {profile_url}
+Detalhes: Nome {nome}, Parlamentar {nome_parlamentar}.
+
+Verifique: nome match, bio política, conteúdo consistente, verificado, idade da conta.
+
+Responda APENAS com JSON:
+<json>
+{{
+    "is_authentic": true/false,
+    "confidence_score": 0.0-1.0,
+    "reasoning": "explicação",
+    "verification_status": "verified/not_verified",
+    "red_flags": ["lista"],
+    "positive_indicators": ["lista"]
+}}
+</json>"""
             
-            Verify if this is likely the authentic official profile by checking:
-            1. Profile name matches
-            2. Bio mentions political role
-            3. Content is consistent with a politician
-            4. Verification status
-            5. Account age and activity patterns
-            
-            Return confidence score (0-1) and reasoning.
-            """
-            
-            # Placeholder verification result
-            verification_result = {
-                'is_authentic': True,
-                'confidence_score': 0.90,
-                'reasoning': 'Profile name matches, bio mentions political role, content consistent',
-                'verification_status': 'not_verified',
-                'red_flags': [],
-                'positive_indicators': ['Name match', 'Political content', 'Regular activity']
+            api_payload = {
+                "model": "grok-4-fast-reasoning",
+                "messages": [
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": user_message}
+                ],
+                "temperature": 0.1,
+                "max_tokens": 1000,
+                "search_parameters": {"enabled": True, "num_sources": 3}
             }
+            
+            response = self._make_request('POST', 'https://api.x.ai/v1/chat/completions', json=api_payload)
+            content = response.get('choices', [{}])[0].get('message', {}).get('content', '')
+            
+            # Parse JSON response
+            content = content.strip()
+            if content.startswith('<json>') and content.endswith('</json>'):
+                content = content.replace('<json>', '').replace('</json>', '').strip()
+            
+            import json
+            verification_result = json.loads(content)
             
             logger.info(f"Profile verification complete: {verification_result['confidence_score']} confidence")
             return verification_result
