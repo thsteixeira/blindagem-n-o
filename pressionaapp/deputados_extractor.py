@@ -271,13 +271,14 @@ class DeputadosDataExtractor:
         
         return result
     
-    def extract_deputies(self, update_existing: bool = True, limit: int = None):
+    def extract_deputies(self, update_existing: bool = True, limit: int = None, skip_existing: bool = False):
         """
         Extract deputies data and save to database using the new Grok-enhanced flow
         
         Args:
             update_existing: Update existing deputies with new data
             limit: Limit number of deputies to process (for testing)
+            skip_existing: Skip deputies that already exist in database
         
         Returns:
             tuple: (created_count, updated_count)
@@ -293,8 +294,25 @@ class DeputadosDataExtractor:
             logger.warning("No deputies data found")
             return 0, 0
         
+        # Get existing deputy API IDs if skip_existing is True
+        existing_api_ids = set()
+        if skip_existing:
+            from .models import Deputado
+            existing_api_ids = set(Deputado.objects.values_list('api_id', flat=True))
+            logger.info(f"Found {len(existing_api_ids)} existing deputies in database - will skip them")
+        
+        # Filter out existing deputies if requested
+        # NOTE: Even when skipping existing deputies, we still need to manage their active/inactive status
+        # in the transaction below to ensure database consistency with the current API state
+        if skip_existing and existing_api_ids:
+            original_count = len(deputies_data)
+            deputies_data = [d for d in deputies_data if d.get('id') not in existing_api_ids]
+            filtered_count = original_count - len(deputies_data)
+            logger.info(f"Filtered out {filtered_count} existing deputies. Processing {len(deputies_data)} new deputies.")
+        
         created_count = 0
         updated_count = 0
+        skipped_count = 0
         
         # Apply limit if specified
         if limit:
@@ -304,6 +322,29 @@ class DeputadosDataExtractor:
         with transaction.atomic():
             # First, mark all deputies as inactive
             Deputado.objects.all().update(is_active=False)
+            
+            # If skip_existing is enabled, we still need to mark existing deputies as active
+            # if they appear in the current API response (they're still serving)
+            if skip_existing and existing_api_ids:
+                # Get all API IDs from the OFFICIAL current deputies API (not legislature filtered)
+                # This ensures we sync with the same data source as the sync_deputy_status command
+                try:
+                    response = self.session.get(f"{self.base_url}/deputados")
+                    response.raise_for_status()
+                    official_data = response.json()
+                    all_current_api_ids = [d.get('id') for d in official_data.get('dados', []) if d.get('id')]
+                except Exception as e:
+                    logger.warning(f"Could not fetch official current deputies for sync: {e}")
+                    # Fallback to the filtered data we already have
+                    all_current_api_ids = [d.get('id') for d in self.get_current_deputies() if d.get('id')]
+                
+                # Mark existing deputies as active if they're still in the current API
+                existing_active_ids = set(all_current_api_ids).intersection(existing_api_ids)
+                if existing_active_ids:
+                    Deputado.objects.filter(api_id__in=existing_active_ids).update(is_active=True)
+                    logger.info(f"Marked {len(existing_active_ids)} existing deputies as active (still serving)")
+                else:
+                    logger.info(f"No existing deputies found in current API response")
             
             for i, deputy_data in enumerate(deputies_data, 1):
                 try:
@@ -389,9 +430,11 @@ class DeputadosDataExtractor:
                         updated_count += 1
                         logger.info(f"✓ Updated: {deputy.nome_parlamentar}")
                     else:
-                        # Just mark as active
+                        # Just mark as active (deputy exists but not updating)
                         deputy.is_active = True
                         deputy.save()
+                        skipped_count += 1
+                        logger.info(f"✓ Skipped (already exists): {deputy.nome_parlamentar}")
                     
 
                     
@@ -405,6 +448,9 @@ class DeputadosDataExtractor:
                     logger.error(f"✗ Error processing deputy {deputy_name}: {str(e)}")
                     continue
         
-        logger.info(f"\nExtraction completed: {created_count} created, {updated_count} updated")
+        if skip_existing:
+            logger.info(f"\nExtraction completed: {created_count} created, {updated_count} updated, {skipped_count} skipped (already existed)")
+        else:
+            logger.info(f"\nExtraction completed: {created_count} created, {updated_count} updated")
         logger.info("New Grok-enhanced extraction flow completed successfully!")
         return created_count, updated_count

@@ -1,0 +1,275 @@
+{% extends 'pressionaapp/base.html' %}
+
+{% block title %}Preview: {{ message.title }} - Pressiona{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1>
+                    <i class="fas fa-eye text-primary"></i>
+                    Preview da Mensagem
+                </h1>
+                <a href="{% url 'twitter_messages_list' %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i> Voltar
+                </a>
+            </div>
+            
+            <!-- Message Info Card -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{{ message.title }}</h5>
+                    <div>
+                        <!-- Status Badge -->
+                        {% if message.status == 'ready' %}
+                            <span class="badge bg-success fs-6">Pronta para Envio</span>
+                        {% elif message.status == 'draft' %}
+                            <span class="badge bg-warning fs-6">Rascunho</span>
+                        {% elif message.status == 'sent' %}
+                            <span class="badge bg-info fs-6">Enviada</span>
+                        {% elif message.status == 'failed' %}
+                            <span class="badge bg-danger fs-6">Falha no Envio</span>
+                        {% elif message.status == 'archived' %}
+                            <span class="badge bg-secondary fs-6">Arquivada</span>
+                        {% endif %}
+                        
+                        <!-- Priority Badge -->
+                        {% if message.priority == 'urgent' %}
+                            <span class="badge bg-danger fs-6 ms-2">
+                                <i class="fas fa-exclamation-triangle"></i> Urgente
+                            </span>
+                        {% elif message.priority == 'high' %}
+                            <span class="badge bg-warning fs-6 ms-2">
+                                <i class="fas fa-arrow-up"></i> Alta Prioridade
+                            </span>
+                        {% elif message.priority == 'medium' %}
+                            <span class="badge bg-primary fs-6 ms-2">
+                                <i class="fas fa-minus"></i> Prioridade Média
+                            </span>
+                        {% else %}
+                            <span class="badge bg-secondary fs-6 ms-2">
+                                <i class="fas fa-arrow-down"></i> Baixa Prioridade
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <!-- Original Message -->
+                            <h6>Mensagem Original:</h6>
+                            <div class="bg-light p-3 rounded mb-3">
+                                <p class="mb-0">{{ message.message }}</p>
+                            </div>
+                            
+                            <!-- Character Count -->
+                            <div class="mb-3">
+                                <small class="{% if message.character_count > 280 %}text-danger{% elif message.character_count > 250 %}text-warning{% else %}text-success{% endif %}">
+                                    <i class="fas fa-font"></i> {{ message.character_count }}/280 caracteres
+                                    {% if message.character_count > 280 %}
+                                        <span class="fw-bold">(Excede o limite do Twitter!)</span>
+                                    {% elif message.character_count > 250 %}
+                                        <span class="fw-bold">(Próximo ao limite)</span>
+                                    {% endif %}
+                                </small>
+                            </div>
+                            
+                            <!-- Additional Elements -->
+                            {% if message.mentions or message.hashtags %}
+                                <div class="mb-3">
+                                    <h6>Elementos Adicionais:</h6>
+                                    {% if message.mentions %}
+                                        <div class="mb-2">
+                                            <strong>Menções:</strong> 
+                                            <span class="text-primary">{{ message.mentions }}</span>
+                                        </div>
+                                    {% endif %}
+                                    {% if message.hashtags %}
+                                        <div class="mb-2">
+                                            <strong>Hashtags:</strong> 
+                                            <span class="text-info">{{ message.hashtags }}</span>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <!-- Message Details -->
+                            <h6>Detalhes:</h6>
+                            <ul class="list-unstyled">
+                                <li><strong>Categoria:</strong> {{ message.get_category_display }}</li>
+                                <li><strong>Prioridade:</strong> {{ message.get_priority_display }}</li>
+                                <li><strong>Status:</strong> {{ message.get_status_display }}</li>
+                                <li><strong>Criada em:</strong> {{ message.created_at|date:"d/m/Y H:i" }}</li>
+                                {% if message.created_by %}
+                                    <li><strong>Criada por:</strong> {{ message.created_by.first_name|default:message.created_by.username }}</li>
+                                {% endif %}
+                                {% if message.times_used > 0 %}
+                                    <li><strong>Vezes usada:</strong> {{ message.times_used }}</li>
+                                    {% if message.last_used_at %}
+                                        <li><strong>Última vez:</strong> {{ message.last_used_at|date:"d/m/Y H:i" }}</li>
+                                    {% endif %}
+                                {% endif %}
+                            </ul>
+                            
+                            <!-- Target Audience -->
+                            <h6 class="mt-3">Público-Alvo:</h6>
+                            <ul class="list-unstyled">
+                                <li>
+                                    <i class="fas fa-users"></i>
+                                    {% if message.for_deputies and message.for_senators %}
+                                        Deputados e Senadores
+                                    {% elif message.for_deputies %}
+                                        Apenas Deputados
+                                    {% elif message.for_senators %}
+                                        Apenas Senadores
+                                    {% else %}
+                                        Nenhum público definido
+                                    {% endif %}
+                                </li>
+                                {% if message.target_parties %}
+                                    <li><i class="fas fa-flag"></i> <strong>Partidos:</strong> {{ message.target_parties }}</li>
+                                {% endif %}
+                                {% if message.target_states %}
+                                    <li><i class="fas fa-map-marker-alt"></i> <strong>Estados:</strong> {{ message.target_states }}</li>
+                                {% endif %}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Previews -->
+            {% if previews %}
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-twitter text-primary"></i>
+                            Preview no Twitter
+                        </h5>
+                        <small class="text-muted">Como ficaria a mensagem formatada para parlamentares</small>
+                    </div>
+                    <div class="card-body">
+                        {% for preview in previews %}
+                            <div class="{% if not forloop.last %}mb-4 pb-3 border-bottom{% endif %}">
+                                <h6 class="text-primary">{{ preview.type }}: {{ preview.name }}</h6>
+                                
+                                <!-- Twitter-like preview -->
+                                <div class="border rounded p-3 bg-light position-relative" style="max-width: 500px;">
+                                    <div class="d-flex align-items-start mb-2">
+                                        <div class="bg-secondary rounded-circle me-2" style="width: 40px; height: 40px;"></div>
+                                        <div>
+                                            <strong>Seu Usuário</strong> <span class="text-muted">@seuusuario</span>
+                                            <br>
+                                            <small class="text-muted">agora</small>
+                                        </div>
+                                    </div>
+                                    
+                                    <p class="mb-2">{{ preview.message }}</p>
+                                    
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div class="d-flex text-muted">
+                                            <span class="me-3"><i class="far fa-comment"></i></span>
+                                            <span class="me-3"><i class="fas fa-retweet"></i></span>
+                                            <span class="me-3"><i class="far fa-heart"></i></span>
+                                            <span><i class="far fa-share-square"></i></span>
+                                        </div>
+                                        <small class="{% if preview.character_count > 280 %}text-danger{% elif preview.character_count > 250 %}text-warning{% else %}text-muted{% endif %}">
+                                            {{ preview.character_count }}/280
+                                        </small>
+                                    </div>
+                                </div>
+                                
+                                {% if preview.character_count > 280 %}
+                                    <div class="alert alert-danger mt-2">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                        <strong>Atenção:</strong> Esta mensagem formatada excede o limite de 280 caracteres do Twitter.
+                                    </div>
+                                {% elif preview.character_count > 250 %}
+                                    <div class="alert alert-warning mt-2">
+                                        <i class="fas fa-exclamation-circle"></i>
+                                        <strong>Cuidado:</strong> Esta mensagem formatada está próxima ao limite de caracteres.
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% else %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>Aviso:</strong> Não foi possível gerar preview porque não há parlamentares com perfil do Twitter cadastrados 
+                    ou esta mensagem não tem público-alvo definido.
+                </div>
+            {% endif %}
+            
+            <!-- Actions -->
+            <div class="card">
+                <div class="card-body text-center">
+                    <h5>Ações</h5>
+                    <div class="btn-group" role="group">
+                        {% if message.status == 'ready' %}
+                            <button class="btn btn-success" onclick="markAsUsed()">
+                                <i class="fas fa-check"></i> Marcar como Usada
+                            </button>
+                        {% endif %}
+                        
+                        <a href="/admin/pressionaapp/twittermessage/{{ message.id }}/change/" 
+                           class="btn btn-warning" target="_blank">
+                            <i class="fas fa-edit"></i> Editar no Admin
+                        </a>
+                        
+                        <a href="{% url 'twitter_messages_list' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-list"></i> Ver Todas as Mensagens
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function markAsUsed() {
+    if (confirm('Marcar esta mensagem como usada?')) {
+        fetch(`/twitter-link/{{ message.id }}/mark-used/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert(`Mensagem marcada como usada! Total de usos: ${data.times_used}`);
+                window.location.href = '{% url "twitter_messages_list" %}';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Erro ao marcar mensagem como usada.');
+        });
+    }
+}
+</script>
+{% endblock %}

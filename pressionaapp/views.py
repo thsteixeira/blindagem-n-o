@@ -196,11 +196,63 @@ def senador_detail_view(request, senador_id):
 
 
 def twitter_messages_list_view(request):
-    """Simple view to list ready Twitter messages for use"""
-    messages = TwitterMessage.objects.filter(status='ready').order_by('priority', '-created_at')
+    """Enhanced view to list Twitter messages with filtering and pagination"""
+    # Filters
+    status_filter = request.GET.get('status', 'ready')
+    category_filter = request.GET.get('category', '')
+    priority_filter = request.GET.get('priority', '')
+    search_query = request.GET.get('search', '')
+    
+    # Base query
+    messages = TwitterMessage.objects.all()
+    
+    # Apply filters
+    if status_filter:
+        messages = messages.filter(status=status_filter)
+    
+    if category_filter:
+        messages = messages.filter(category=category_filter)
+    
+    if priority_filter:
+        messages = messages.filter(priority=priority_filter)
+    
+    if search_query:
+        messages = messages.filter(
+            Q(title__icontains=search_query) |
+            Q(message__icontains=search_query)
+        )
+    
+    # Ordering
+    messages = messages.order_by('priority', '-created_at')
+    
+    # Pagination
+    paginator = Paginator(messages, 12)  # 12 messages per page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    # Filter options for dropdowns
+    categories = TwitterMessage.CATEGORY_CHOICES
+    priorities = TwitterMessage.PRIORITY_CHOICES
+    statuses = TwitterMessage.STATUS_CHOICES
+    
+    # Statistics
+    total_messages = TwitterMessage.objects.count()
+    ready_messages = TwitterMessage.objects.filter(status='ready').count()
+    draft_messages = TwitterMessage.objects.filter(status='draft').count()
     
     context = {
-        'messages': messages,
+        'page_obj': page_obj,
+        'search_query': search_query,
+        'status_filter': status_filter,
+        'category_filter': category_filter,
+        'priority_filter': priority_filter,
+        'categories': categories,
+        'priorities': priorities,
+        'statuses': statuses,
+        'total_messages': total_messages,
+        'ready_messages': ready_messages,
+        'draft_messages': draft_messages,
+        'filtered_count': messages.count(),
     }
     
     return render(request, 'pressionaapp/twitter_messages_list.html', context)

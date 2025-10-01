@@ -1,41 +1,31 @@
-#!/usr/bin/env python
 """
-Browser automation script to manually collect latest tweets from all politicians in database
-Opens Twitter/X, waits for manual login, then searches for latest tweets from all saved profiles
+Django management command to collect tweets from politicians using browser automation
 """
 
-import os
-import sys
-import django
 import time
-import csv
 from datetime import datetime
+from django.core.management.base import BaseCommand
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from webdriver_manager.chrome import ChromeDriverManager
-
-# Setup Django
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'pressiona.settings')
-django.setup()
-
 from pressionaapp.models import Deputado, Senador
 
+
 class TwitterProfileTweetCollector:
-    def __init__(self):
+    def __init__(self, stdout):
         self.driver = None
         self.collected_tweets = []
+        self.stdout = stdout
         self.setup_driver()
     
     def setup_driver(self):
         """Setup Chrome WebDriver with appropriate options"""
-        print("🌐 Setting up Chrome WebDriver...")
+        self.stdout.write("🌐 Setting up Chrome WebDriver...")
         
         chrome_options = Options()
         chrome_options.add_argument("--start-maximized")
@@ -48,89 +38,100 @@ class TwitterProfileTweetCollector:
             service = Service(ChromeDriverManager().install())
             self.driver = webdriver.Chrome(service=service, options=chrome_options)
             self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-            print("✅ Chrome WebDriver initialized successfully")
+            self.stdout.write("✅ Chrome WebDriver initialized successfully")
         except Exception as e:
-            print(f"❌ Error setting up WebDriver: {str(e)}")
-            print("💡 Make sure you have Chrome browser installed")
+            self.stdout.write(f"❌ Error setting up WebDriver: {str(e)}")
+            self.stdout.write("💡 Make sure you have Chrome browser installed")
             raise
     
     def open_twitter_and_login(self):
         """Open Twitter/X and wait for user to login manually"""
-        print("\n🔐 Opening Twitter/X for manual login...")
+        self.stdout.write("\n🔐 Opening Twitter/X for manual login...")
         
         try:
             # Go to Twitter login page
             self.driver.get("https://x.com/login")
-            print("📱 Twitter/X login page opened")
+            self.stdout.write("📱 Twitter/X login page opened")
             
             # Wait for user to login manually
-            print("\n" + "="*60)
-            print("🚨 MANUAL LOGIN REQUIRED")
-            print("="*60)
-            print("1. Please login to your Twitter/X account in the browser")
-            print("2. Complete any 2FA or verification steps")
-            print("3. Wait until you see your Twitter/X home feed")
-            print("4. Then press ENTER in this console to continue...")
-            print("="*60)
+            self.stdout.write("\n" + "="*60)
+            self.stdout.write("🚨 MANUAL LOGIN REQUIRED")
+            self.stdout.write("="*60)
+            self.stdout.write("1. Please login to your Twitter/X account in the browser")
+            self.stdout.write("2. Complete any 2FA or verification steps")
+            self.stdout.write("3. Wait until you see your Twitter/X home feed")
+            self.stdout.write("4. Then press ENTER in this console to continue...")
+            self.stdout.write("="*60)
             
             input("\n⏳ Press ENTER after you've successfully logged in: ")
             
             # Verify login by checking for home page elements
-            print("\n🔍 Verifying login status...")
+            self.stdout.write("\n🔍 Verifying login status...")
             time.sleep(3)
             
             current_url = self.driver.current_url
             if "home" in current_url or "x.com" in current_url:
-                print("✅ Login verification successful!")
+                self.stdout.write("✅ Login verification successful!")
                 return True
             else:
-                print(f"⚠️  Current URL: {current_url}")
-                print("❌ Login might not be complete. Continuing anyway...")
+                self.stdout.write(f"⚠️  Current URL: {current_url}")
+                self.stdout.write("❌ Login might not be complete. Continuing anyway...")
                 return False
                 
         except Exception as e:
-            print(f"❌ Error during login process: {str(e)}")
+            self.stdout.write(f"❌ Error during login process: {str(e)}")
             return False
     
-    def get_politicians_from_database(self, limit_deputies=None):
+    def get_politicians_from_database(self, limit=None, politicians_type='both'):
         """Get politicians with Twitter URLs from database"""
-        print("🗄️  Loading politicians from database...")
+        self.stdout.write("🗄️  Loading politicians from database...")
         
         politicians = []
+        deputies_count = 0
+        senators_count = 0
         
-        # Get deputies with Twitter URLs
-        deputies_query = Deputado.objects.filter(
-            twitter_url__isnull=False,
-            is_active=True
-        ).exclude(twitter_url='')
-        
-        # Apply limit if specified
-        if limit_deputies:
-            deputies_query = deputies_query[:limit_deputies]
-            print(f"🔢 Limiting to {limit_deputies} deputies")
-        
-        deputies = list(deputies_query)
-        
-        for deputy in deputies:
-            politicians.append({
-                'type': 'Deputado',
-                'name': deputy.nome_parlamentar,
-                'party': deputy.partido,
-                'state': deputy.uf,
-                'twitter_url': deputy.twitter_url,
-                'username': self.extract_username_from_url(deputy.twitter_url),
-                'id': deputy.id
-            })
-        
-        # For now, skip senators when limiting deputies
-        if not limit_deputies:
-            # Get senators with Twitter URLs
-            senators = Senador.objects.filter(
+        # Get deputies if requested
+        if politicians_type in ['both', 'deputies']:
+            deputies_query = Deputado.objects.filter(
                 twitter_url__isnull=False,
                 is_active=True
-            ).exclude(twitter_url='')
+            ).exclude(twitter_url='').order_by('nome_parlamentar')
             
-            for senator in senators:
+            if limit and politicians_type == 'deputies':
+                # If only deputies and limit specified, apply limit to deputies
+                deputies_query = deputies_query[:limit]
+            elif limit and politicians_type == 'both':
+                # If both types and limit specified, apply half limit to deputies
+                deputies_query = deputies_query[:limit//2]
+            
+            for deputy in deputies_query:
+                politicians.append({
+                    'type': 'Deputado',
+                    'name': deputy.nome_parlamentar,
+                    'party': deputy.partido,
+                    'state': deputy.uf,
+                    'twitter_url': deputy.twitter_url,
+                    'username': self.extract_username_from_url(deputy.twitter_url),
+                    'id': deputy.id
+                })
+                deputies_count += 1
+        
+        # Get senators if requested
+        if politicians_type in ['both', 'senators']:
+            senators_query = Senador.objects.filter(
+                twitter_url__isnull=False,
+                is_active=True
+            ).exclude(twitter_url='').order_by('nome_parlamentar')
+            
+            if limit and politicians_type == 'senators':
+                # If only senators and limit specified, apply limit to senators
+                senators_query = senators_query[:limit]
+            elif limit and politicians_type == 'both':
+                # If both types and limit specified, apply remaining limit to senators
+                remaining_limit = limit - deputies_count
+                senators_query = senators_query[:remaining_limit]
+            
+            for senator in senators_query:
                 politicians.append({
                     'type': 'Senador',
                     'name': senator.nome_parlamentar,
@@ -140,12 +141,21 @@ class TwitterProfileTweetCollector:
                     'username': self.extract_username_from_url(senator.twitter_url),
                     'id': senator.id
                 })
-            
-            print(f"📊 Found {len(politicians)} politicians with Twitter profiles:")
-            print(f"   📋 Deputies: {len(deputies)}")
-            print(f"   🏛️  Senators: {len(senators)}")
-        else:
-            print(f"📊 Found {len(politicians)} deputies with Twitter profiles (limited)")
+                senators_count += 1
+        
+        # Apply final limit if both types and total exceeds limit
+        if limit and politicians_type == 'both' and len(politicians) > limit:
+            politicians = politicians[:limit]
+            self.stdout.write(f"🔢 Applied final limit of {limit} politicians")
+        
+        self.stdout.write(f"📊 Found {len(politicians)} politicians with Twitter profiles:")
+        if deputies_count > 0:
+            self.stdout.write(f"   📋 Deputies: {deputies_count}")
+        if senators_count > 0:
+            self.stdout.write(f"   🏛️  Senators: {senators_count}")
+        
+        if limit:
+            self.stdout.write(f"   🔢 Limited to: {limit} total")
         
         return politicians
     
@@ -173,13 +183,13 @@ class TwitterProfileTweetCollector:
         username = politician['username']
         name = politician['name']
         
-        print(f"\n[🔍] Checking @{username} ({name})")
-        print("-" * 50)
+        self.stdout.write(f"\n[🔍] Checking @{username} ({name})")
+        self.stdout.write("-" * 50)
         
         try:
             # Navigate to the profile
             profile_url = f"https://x.com/{username}"
-            print(f"📱 Visiting: {profile_url}")
+            self.stdout.write(f"📱 Visiting: {profile_url}")
             self.driver.get(profile_url)
             
             # Wait for page to load
@@ -193,10 +203,10 @@ class TwitterProfileTweetCollector:
                 "account suspended", "this account has been suspended",
                 "this account doesn't exist", "sorry, that page doesn't exist"
             ]):
-                print("❌ Profile suspended or not found")
+                self.stdout.write("❌ Profile suspended or not found")
                 return self.create_result_entry(politician, "suspended", None)
             
-            print("✅ Profile accessible")
+            self.stdout.write("✅ Profile accessible")
             
             # Try to find the latest tweet
             try:
@@ -209,7 +219,7 @@ class TwitterProfileTweetCollector:
                 tweet_elements = self.driver.find_elements(By.CSS_SELECTOR, '[data-testid="tweet"]')
                 
                 if not tweet_elements:
-                    print("❌ No tweets found")
+                    self.stdout.write("❌ No tweets found")
                     return self.create_result_entry(politician, "no_tweets", None)
                 
                 # Get the first tweet (most recent)
@@ -219,22 +229,22 @@ class TwitterProfileTweetCollector:
                 tweet_data = self.extract_tweet_data(first_tweet, username)
                 
                 if tweet_data:
-                    print(f"✅ Latest tweet found!")
-                    print(f"   📅 Date: {tweet_data.get('date', 'Unknown')}")
-                    print(f"   🔗 URL: {tweet_data.get('url', 'N/A')}")
-                    print(f"   💬 Text: {tweet_data.get('text', '')[:100]}...")
+                    self.stdout.write(f"✅ Latest tweet found!")
+                    self.stdout.write(f"   📅 Date: {tweet_data.get('date', 'Unknown')}")
+                    self.stdout.write(f"   🔗 URL: {tweet_data.get('url', 'N/A')}")
+                    self.stdout.write(f"   💬 Text: {tweet_data.get('text', '')[:100]}...")
                     
                     return self.create_result_entry(politician, "success", tweet_data)
                 else:
-                    print("⚠️  Could not extract tweet data")
+                    self.stdout.write("⚠️  Could not extract tweet data")
                     return self.create_result_entry(politician, "extraction_failed", None)
                 
             except TimeoutException:
-                print("❌ Timeout waiting for tweets to load")
+                self.stdout.write("❌ Timeout waiting for tweets to load")
                 return self.create_result_entry(politician, "timeout", None)
             
         except Exception as e:
-            print(f"❌ Error visiting profile: {str(e)}")
+            self.stdout.write(f"❌ Error visiting profile: {str(e)}")
             return self.create_result_entry(politician, "error", None, str(e))
     
     def extract_tweet_data(self, tweet_element, username):
@@ -305,7 +315,7 @@ class TwitterProfileTweetCollector:
             return tweet_data
             
         except Exception as e:
-            print(f"⚠️  Error extracting tweet data: {str(e)}")
+            self.stdout.write(f"⚠️  Error extracting tweet data: {str(e)}")
             return None
     
     def create_result_entry(self, politician, status, tweet_data, error=None):
@@ -328,60 +338,33 @@ class TwitterProfileTweetCollector:
             'error_message': error or ''
         }
     
-    def save_results_to_csv(self, filename=None):
-        """Save collected results to CSV file"""
-        if not filename:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"politicians_tweets_collection_{timestamp}.csv"
-        
-        print(f"\n💾 Saving results to: {filename}")
-        
-        if not self.collected_tweets:
-            print("⚠️  No data to save")
-            return
-        
-        fieldnames = [
-            'politician_type', 'politician_name', 'politician_party', 'politician_state',
-            'twitter_username', 'twitter_url', 'status',
-            'tweet_text', 'tweet_date', 'tweet_url',
-            'tweet_likes', 'tweet_retweets', 'tweet_replies',
-            'extraction_time', 'error_message'
-        ]
-        
-        with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(self.collected_tweets)
-        
-        print(f"✅ Results saved to {filename}")
-    
-    def run_collection(self):
+    def run_collection(self, limit=None, politicians_type='both'):
         """Run the complete tweet collection process"""
-        print("=" * 80)
-        print("🏛️  TWITTER TWEET COLLECTION FOR BRAZILIAN POLITICIANS")
-        print("=" * 80)
+        self.stdout.write("=" * 80)
+        self.stdout.write("🏛️  TWITTER TWEET COLLECTION FOR BRAZILIAN POLITICIANS")
+        self.stdout.write("=" * 80)
         
         # Step 1: Open Twitter and wait for login
         if not self.open_twitter_and_login():
-            print("❌ Login process failed. Exiting...")
+            self.stdout.write("❌ Login process failed. Exiting...")
             return
         
         # Step 2: Get politicians from database
-        politicians = self.get_politicians_from_database()
+        politicians = self.get_politicians_from_database(limit, politicians_type)
         
         if not politicians:
-            print("❌ No politicians with Twitter profiles found in database")
+            self.stdout.write("❌ No politicians with Twitter profiles found in database")
             return
         
         # Step 3: Process each politician
-        print(f"\n🔍 Starting tweet collection for {len(politicians)} politicians...")
+        self.stdout.write(f"\n🔍 Starting tweet collection for {len(politicians)} politicians...")
         start_time = datetime.now()
         
         successful_collections = 0
         failed_collections = 0
         
         for i, politician in enumerate(politicians, 1):
-            print(f"\n[{i:3d}/{len(politicians)}] Processing {politician['name']} (@{politician['username']})")
+            self.stdout.write(f"\n[{i:3d}/{len(politicians)}] Processing {politician['name']} (@{politician['username']})")
             
             result = self.visit_profile_and_get_latest_tweet(politician)
             self.collected_tweets.append(result)
@@ -396,22 +379,22 @@ class TwitterProfileTweetCollector:
             
             # Longer pause every 20 profiles
             if i % 20 == 0:
-                print(f"\n⏸️  Pausing for 10 seconds (processed {i}/{len(politicians)})...")
+                self.stdout.write(f"\n⏸️  Pausing for 10 seconds (processed {i}/{len(politicians)})...")
                 time.sleep(10)
         
         # Step 4: Show final results and save
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
         
-        print("\n" + "=" * 80)
-        print("📊 COLLECTION RESULTS SUMMARY")
-        print("=" * 80)
+        self.stdout.write("\n" + "=" * 80)
+        self.stdout.write("📊 COLLECTION RESULTS SUMMARY")
+        self.stdout.write("=" * 80)
         
-        print(f"⏱️  Total time: {duration/60:.1f} minutes")
-        print(f"👥 Politicians processed: {len(politicians)}")
-        print(f"✅ Successful collections: {successful_collections}")
-        print(f"❌ Failed collections: {failed_collections}")
-        print(f"📈 Success rate: {successful_collections/len(politicians)*100:.1f}%")
+        self.stdout.write(f"⏱️  Total time: {duration/60:.1f} minutes")
+        self.stdout.write(f"👥 Politicians processed: {len(politicians)}")
+        self.stdout.write(f"✅ Successful collections: {successful_collections}")
+        self.stdout.write(f"❌ Failed collections: {failed_collections}")
+        self.stdout.write(f"📈 Success rate: {successful_collections/len(politicians)*100:.1f}%")
         
         # Show breakdown by status
         status_counts = {}
@@ -419,48 +402,72 @@ class TwitterProfileTweetCollector:
             status = result['status']
             status_counts[status] = status_counts.get(status, 0) + 1
         
-        print(f"\n📋 Status breakdown:")
+        self.stdout.write(f"\n📋 Status breakdown:")
         for status, count in status_counts.items():
-            print(f"   {status}: {count}")
+            self.stdout.write(f"   {status}: {count}")
         
-        # Save results
-        self.save_results_to_csv()
-        
-        print("=" * 80)
+        self.stdout.write("=" * 80)
         
         return self.collected_tweets
     
     def cleanup(self):
         """Close the browser"""
         if self.driver:
-            print("\n🔄 Closing browser...")
+            self.stdout.write("\n🔄 Closing browser...")
             self.driver.quit()
-            print("✅ Browser closed")
+            self.stdout.write("✅ Browser closed")
 
-def main():
-    """Main function to run the tweet collection"""
-    collector = None
-    
-    try:
-        collector = TwitterProfileTweetCollector()
-        results = collector.run_collection()
-        
-        print(f"\n🎉 Tweet collection complete!")
-        print(f"📊 Total results: {len(results)}")
-        
-    except KeyboardInterrupt:
-        print("\n⏹️  Process interrupted by user")
-    except Exception as e:
-        print(f"\n❌ Unexpected error: {str(e)}")
-    finally:
-        if collector:
-            collector.cleanup()
 
-if __name__ == "__main__":
-    print("🚀 Starting Twitter Tweet Collection for Politicians...")
-    print("💡 Make sure you have Chrome browser installed")
-    print("💡 You'll need to manually login to Twitter/X when prompted")
-    print("💡 This process may take a while depending on the number of politicians")
-    
-    input("\n⏳ Press ENTER to start the browser...")
-    main()
+class Command(BaseCommand):
+    help = 'Collect latest tweets from politicians using browser automation'
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--limit',
+            type=int,
+            help='Limit number of politicians to process (default: all)',
+        )
+        parser.add_argument(
+            '--type',
+            choices=['deputies', 'senators', 'both'],
+            default='both',
+            help='Type of politicians to collect tweets from (default: both)',
+        )
+
+    def handle(self, *args, **options):
+        limit = options.get('limit')
+        politicians_type = options.get('type')
+        
+        self.stdout.write("🚀 Starting Twitter Tweet Collection for Politicians...")
+        self.stdout.write("💡 Make sure you have Chrome browser installed")
+        self.stdout.write("💡 You'll need to manually login to Twitter/X when prompted")
+        self.stdout.write("💡 This process may take a while depending on the number of politicians")
+        
+        if limit:
+            self.stdout.write(f"🔢 Limit: {limit} politicians")
+        
+        type_display = {
+            'deputies': 'Deputados apenas',
+            'senators': 'Senadores apenas', 
+            'both': 'Deputados e Senadores'
+        }
+        self.stdout.write(f"👥 Tipo: {type_display[politicians_type]}")
+        
+        input("\n⏳ Press ENTER to start the browser...")
+        
+        collector = None
+        
+        try:
+            collector = TwitterProfileTweetCollector(self.stdout)
+            results = collector.run_collection(limit, politicians_type)
+            
+            self.stdout.write(f"\n🎉 Tweet collection complete!")
+            self.stdout.write(f"📊 Total results: {len(results)}")
+            
+        except KeyboardInterrupt:
+            self.stdout.write("\n⏹️  Process interrupted by user")
+        except Exception as e:
+            self.stdout.write(f"\n❌ Unexpected error: {str(e)}")
+        finally:
+            if collector:
+                collector.cleanup()

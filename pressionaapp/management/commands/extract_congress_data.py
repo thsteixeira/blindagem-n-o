@@ -31,6 +31,11 @@ class Command(BaseCommand):
             action='store_true',
             help='Do not update existing records',
         )
+        parser.add_argument(
+            '--skip-existing',
+            action='store_true',
+            help='Skip processing existing deputies/senators (only extract new ones, but still sync active status)',
+        )
 
 
     def handle(self, *args, **options):
@@ -39,10 +44,13 @@ class Command(BaseCommand):
         update_existing = not options['no_update']
         limit = options.get('limit')
         
+        skip_existing = options['skip_existing']
+        
         if not options['senators_only']:
             self.stdout.write("\n📋 EXTRACTING DEPUTIES...")
             self.stdout.write(f"   Grok API profile discovery: ON")
             self.stdout.write(f"   Update existing: {'ON' if update_existing else 'OFF'}")
+            self.stdout.write(f"   Skip existing: {'ON' if skip_existing else 'OFF'}")
             if limit:
                 self.stdout.write(f"   Limit: {limit} records")
             
@@ -50,7 +58,8 @@ class Command(BaseCommand):
                 extractor = DeputadosDataExtractor()
                 created, updated = extractor.extract_deputies(
                     update_existing=update_existing,
-                    limit=options.get('limit')
+                    limit=options.get('limit'),
+                    skip_existing=skip_existing
                 )
                 self.stdout.write(f"✅ Deputies: {created} created, {updated} updated")
             except Exception as e:
@@ -60,6 +69,7 @@ class Command(BaseCommand):
             self.stdout.write("\n🏛️  EXTRACTING SENATORS...")
             self.stdout.write(f"   Grok API profile discovery: ON")
             self.stdout.write(f"   Update existing: {'ON' if update_existing else 'OFF'}")
+            self.stdout.write(f"   Skip existing: {'ON (N/A for senators)' if skip_existing else 'OFF'}")
             if limit:
                 self.stdout.write(f"   Limit: {limit} records")
             

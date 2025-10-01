@@ -1,0 +1,356 @@
+{% extends 'pressionaapp/base.html' %}
+
+{% block title %}Mensagens do Twitter - Pressiona{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">
+                <i class="fas fa-twitter text-primary"></i>
+                Mensagens do Twitter
+            </h1>
+            
+            <!-- Statistics Cards -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h6 class="card-title">Total de Mensagens</h6>
+                                    <h3 class="mb-0">{{ total_messages }}</h3>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-envelope fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-success text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h6 class="card-title">Prontas para Envio</h6>
+                                    <h3 class="mb-0">{{ ready_messages }}</h3>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-check-circle fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-warning text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h6 class="card-title">Rascunhos</h6>
+                                    <h3 class="mb-0">{{ draft_messages }}</h3>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-edit fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-info text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h6 class="card-title">Resultados</h6>
+                                    <h3 class="mb-0">{{ filtered_count }}</h3>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-filter fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Filters -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <form method="get" class="row g-3">
+                        <div class="col-md-3">
+                            <label for="search" class="form-label">Buscar</label>
+                            <input type="text" class="form-control" id="search" name="search" 
+                                   value="{{ search_query }}" placeholder="Título ou conteúdo...">
+                        </div>
+                        <div class="col-md-2">
+                            <label for="status" class="form-label">Status</label>
+                            <select class="form-select" id="status" name="status">
+                                <option value="">Todos</option>
+                                {% for value, display in statuses %}
+                                    <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>
+                                        {{ display }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="category" class="form-label">Categoria</label>
+                            <select class="form-select" id="category" name="category">
+                                <option value="">Todas</option>
+                                {% for value, display in categories %}
+                                    <option value="{{ value }}" {% if category_filter == value %}selected{% endif %}>
+                                        {{ display }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="priority" class="form-label">Prioridade</label>
+                            <select class="form-select" id="priority" name="priority">
+                                <option value="">Todas</option>
+                                {% for value, display in priorities %}
+                                    <option value="{{ value }}" {% if priority_filter == value %}selected{% endif %}>
+                                        {{ display }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-search"></i> Filtrar
+                            </button>
+                            <a href="{% url 'twitter_messages_list' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times"></i> Limpar
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Messages Grid -->
+            {% if page_obj %}
+                <div class="row">
+                    {% for message in page_obj %}
+                        <div class="col-md-6 col-lg-4 mb-4">
+                            <div class="card h-100 {% if message.status == 'ready' %}border-success{% elif message.status == 'draft' %}border-warning{% endif %}">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0">{{ message.title }}</h6>
+                                    <div>
+                                        <!-- Status Badge -->
+                                        {% if message.status == 'ready' %}
+                                            <span class="badge bg-success">Pronta</span>
+                                        {% elif message.status == 'draft' %}
+                                            <span class="badge bg-warning">Rascunho</span>
+                                        {% elif message.status == 'sent' %}
+                                            <span class="badge bg-info">Enviada</span>
+                                        {% elif message.status == 'failed' %}
+                                            <span class="badge bg-danger">Falha</span>
+                                        {% elif message.status == 'archived' %}
+                                            <span class="badge bg-secondary">Arquivada</span>
+                                        {% endif %}
+                                        
+                                        <!-- Priority Badge -->
+                                        {% if message.priority == 'urgent' %}
+                                            <span class="badge bg-danger ms-1">
+                                                <i class="fas fa-exclamation-triangle"></i> Urgente
+                                            </span>
+                                        {% elif message.priority == 'high' %}
+                                            <span class="badge bg-warning ms-1">
+                                                <i class="fas fa-arrow-up"></i> Alta
+                                            </span>
+                                        {% elif message.priority == 'medium' %}
+                                            <span class="badge bg-primary ms-1">
+                                                <i class="fas fa-minus"></i> Média
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-secondary ms-1">
+                                                <i class="fas fa-arrow-down"></i> Baixa
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                <div class="card-body">
+                                    <!-- Message Preview -->
+                                    <p class="card-text">{{ message.message|truncatechars:120 }}</p>
+                                    
+                                    <!-- Character Count -->
+                                    <div class="mb-2">
+                                        <small class="{% if message.character_count > 280 %}text-danger{% elif message.character_count > 250 %}text-warning{% else %}text-muted{% endif %}">
+                                            <i class="fas fa-font"></i> {{ message.character_count }}/280 caracteres
+                                        </small>
+                                    </div>
+                                    
+                                    <!-- Category and Usage -->
+                                    <div class="mb-2">
+                                        <span class="badge bg-light text-dark">
+                                            <i class="fas fa-tag"></i> {{ message.get_category_display }}
+                                        </span>
+                                    </div>
+                                    
+                                    <!-- Target Audience -->
+                                    <div class="mb-3">
+                                        <small class="text-muted">
+                                            <strong>Para:</strong>
+                                            {% if message.for_deputies and message.for_senators %}
+                                                Deputados e Senadores
+                                            {% elif message.for_deputies %}
+                                                Deputados
+                                            {% elif message.for_senators %}
+                                                Senadores
+                                            {% endif %}
+                                            
+                                            {% if message.target_parties %}
+                                                <br><strong>Partidos:</strong> {{ message.target_parties|truncatechars:30 }}
+                                            {% endif %}
+                                            
+                                            {% if message.target_states %}
+                                                <br><strong>Estados:</strong> {{ message.target_states|truncatechars:20 }}
+                                            {% endif %}
+                                        </small>
+                                    </div>
+                                    
+                                    <!-- Usage Statistics -->
+                                    {% if message.times_used > 0 %}
+                                        <div class="mb-2">
+                                            <small class="text-success">
+                                                <i class="fas fa-chart-line"></i> Usada {{ message.times_used }} vez{{ message.times_used|pluralize:"es" }}
+                                                {% if message.last_used_at %}
+                                                    <br>Última vez: {{ message.last_used_at|date:"d/m/Y H:i" }}
+                                                {% endif %}
+                                            </small>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="card-footer bg-transparent">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <small class="text-muted">
+                                            <i class="fas fa-calendar"></i> {{ message.created_at|date:"d/m/Y" }}
+                                            {% if message.created_by %}
+                                                por {{ message.created_by.first_name|default:message.created_by.username }}
+                                            {% endif %}
+                                        </small>
+                                        
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{% url 'twitter_message_preview' message.id %}" 
+                                               class="btn btn-outline-primary" title="Visualizar">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            
+                                            {% if message.status == 'ready' %}
+                                                <button class="btn btn-outline-success" 
+                                                        onclick="markAsUsed({{ message.id }})" title="Marcar como usada">
+                                                    <i class="fas fa-check"></i>
+                                                </button>
+                                            {% endif %}
+                                            
+                                            <a href="/admin/pressionaapp/twittermessage/{{ message.id }}/change/" 
+                                               class="btn btn-outline-warning" title="Editar" target="_blank">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+                
+                <!-- Pagination -->
+                {% if page_obj.has_other_pages %}
+                    <nav aria-label="Navegação de mensagens">
+                        <ul class="pagination justify-content-center">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?{% if search_query %}search={{ search_query }}&{% endif %}{% if status_filter %}status={{ status_filter }}&{% endif %}{% if category_filter %}category={{ category_filter }}&{% endif %}{% if priority_filter %}priority={{ priority_filter }}&{% endif %}page={{ page_obj.previous_page_number }}">
+                                        <i class="fas fa-chevron-left"></i> Anterior
+                                    </a>
+                                </li>
+                            {% endif %}
+                            
+                            {% for num in page_obj.paginator.page_range %}
+                                {% if page_obj.number == num %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ num }}</span>
+                                    </li>
+                                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?{% if search_query %}search={{ search_query }}&{% endif %}{% if status_filter %}status={{ status_filter }}&{% endif %}{% if category_filter %}category={{ category_filter }}&{% endif %}{% if priority_filter %}priority={{ priority_filter }}&{% endif %}page={{ num }}">{{ num }}</a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?{% if search_query %}search={{ search_query }}&{% endif %}{% if status_filter %}status={{ status_filter }}&{% endif %}{% if category_filter %}category={{ category_filter }}&{% endif %}{% if priority_filter %}priority={{ priority_filter }}&{% endif %}page={{ page_obj.next_page_number }}">
+                                        Próxima <i class="fas fa-chevron-right"></i>
+                                    </a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
+                    <h4 class="text-muted">Nenhuma mensagem encontrada</h4>
+                    <p class="text-muted">
+                        {% if search_query or status_filter or category_filter or priority_filter %}
+                            Tente ajustar os filtros ou 
+                            <a href="{% url 'twitter_messages_list' %}">limpar todos os filtros</a>.
+                        {% else %}
+                            Não há mensagens cadastradas no sistema.
+                        {% endif %}
+                    </p>
+                    <a href="/admin/pressionaapp/twittermessage/add/" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Criar Nova Mensagem
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function markAsUsed(messageId) {
+    if (confirm('Marcar esta mensagem como usada?')) {
+        fetch(`/twitter-link/${messageId}/mark-used/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert(`Mensagem marcada como usada! Total de usos: ${data.times_used}`);
+                location.reload();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Erro ao marcar mensagem como usada.');
+        });
+    }
+}
+</script>
+{% endblock %}
