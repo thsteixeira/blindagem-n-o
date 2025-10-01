@@ -3,8 +3,12 @@ Django management command to collect tweets from politicians using browser autom
 """
 
 import time
+import re
 from datetime import datetime
 from django.core.management.base import BaseCommand
+from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
+from django.utils.dateparse import parse_datetime
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -13,14 +17,15 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from webdriver_manager.chrome import ChromeDriverManager
-from pressionaapp.models import Deputado, Senador
+from pressionaapp.models import Deputado, Senador, Tweet
 
 
 class TwitterProfileTweetCollector:
-    def __init__(self, stdout):
+    def __init__(self, stdout, save_to_db=True):
         self.driver = None
         self.collected_tweets = []
         self.stdout = stdout
+        self.save_to_db = save_to_db
         self.setup_driver()
     
     def setup_driver(self):
@@ -234,6 +239,14 @@ class TwitterProfileTweetCollector:
                     self.stdout.write(f"   🔗 URL: {tweet_data.get('url', 'N/A')}")
                     self.stdout.write(f"   💬 Text: {tweet_data.get('text', '')[:100]}...")
                     
+                    # Save to database if requested
+                    if self.save_to_db:
+                        saved = self.save_tweet_to_database(politician, tweet_data)
+                        if saved:
+                            self.stdout.write(f"   💾 Tweet saved to database")
+                    else:
+                        self.stdout.write(f"   ℹ️  Display only mode (use without --no-save to save to database)")
+                    
                     return self.create_result_entry(politician, "success", tweet_data)
                 else:
                     self.stdout.write("⚠️  Could not extract tweet data")
@@ -338,6 +351,99 @@ class TwitterProfileTweetCollector:
             'error_message': error or ''
         }
     
+    def save_tweet_to_database(self, politician, tweet_data):
+        """Save successfully collected tweet to database"""
+        try:
+            # Get the politician model instance
+            if politician['type'] == 'Deputado':
+                politician_instance = Deputado.objects.get(id=politician['id'])
+            else:
+                politician_instance = Senador.objects.get(id=politician['id'])
+            
+            # Extract tweet ID from URL
+            tweet_id = self.extract_tweet_id_from_url(tweet_data.get('url', ''))
+            if not tweet_id:
+                self.stdout.write(f"   ⚠️  Could not extract tweet ID from URL: {tweet_data.get('url', '')}")
+                return False
+            
+            # Parse tweet date
+            tweet_date = None
+            if tweet_data.get('date'):
+                try:
+                    tweet_date = parse_datetime(tweet_data['date'])
+                except:
+                    self.stdout.write(f"   ⚠️  Could not parse tweet date: {tweet_data['date']}")
+            
+            # Get content type for generic foreign key
+            content_type = ContentType.objects.get_for_model(politician_instance)
+            
+            # Check if tweet already exists
+            existing_tweet = Tweet.objects.filter(
+                content_type=content_type,
+                object_id=politician_instance.id,
+                tweet_id=tweet_id
+            ).first()
+            
+            if existing_tweet:
+                # Update existing tweet
+                existing_tweet.tweet_text = tweet_data.get('text', '')
+                existing_tweet.tweet_date = tweet_date
+                existing_tweet.needs_content_update = False
+                existing_tweet.save()
+                self.stdout.write(f"   🔄 Updated existing tweet in database")
+                return True
+            else:
+                # Create new tweet (position 1 = latest)
+                # First, shift existing tweets down
+                existing_tweets = Tweet.objects.filter(
+                    content_type=content_type,
+                    object_id=politician_instance.id
+                ).order_by('position')
+                
+                # Shift positions down and keep only top 4 (so new one becomes position 1)
+                for i, tweet in enumerate(existing_tweets[:4]):
+                    tweet.position = i + 2
+                    tweet.save()
+                
+                # Delete tweets beyond position 5
+                Tweet.objects.filter(
+                    content_type=content_type,
+                    object_id=politician_instance.id,
+                    position__gt=5
+                ).delete()
+                
+                # Create new tweet at position 1
+                new_tweet = Tweet.objects.create(
+                    content_type=content_type,
+                    object_id=politician_instance.id,
+                    tweet_url=tweet_data.get('url', ''),
+                    tweet_id=tweet_id,
+                    tweet_text=tweet_data.get('text', ''),
+                    tweet_date=tweet_date,
+                    position=1,
+                    needs_content_update=False
+                )
+                
+                # Update politician's latest_tweet_url
+                politician_instance.latest_tweet_url = tweet_data.get('url', '')
+                politician_instance.save(update_fields=['latest_tweet_url'])
+                
+                self.stdout.write(f"   ✅ Saved new tweet to database (position 1)")
+                return True
+                
+        except Exception as e:
+            self.stdout.write(f"   ❌ Error saving tweet to database: {str(e)}")
+            return False
+    
+    def extract_tweet_id_from_url(self, tweet_url):
+        """Extract tweet ID from Twitter URL"""
+        if not tweet_url:
+            return None
+        
+        # Pattern to match Twitter status URLs
+        match = re.search(r'/status/(\d+)', tweet_url)
+        return match.group(1) if match else None
+    
     def run_collection(self, limit=None, politicians_type='both'):
         """Run the complete tweet collection process"""
         self.stdout.write("=" * 80)
@@ -362,6 +468,7 @@ class TwitterProfileTweetCollector:
         
         successful_collections = 0
         failed_collections = 0
+        database_saves = 0
         
         for i, politician in enumerate(politicians, 1):
             self.stdout.write(f"\n[{i:3d}/{len(politicians)}] Processing {politician['name']} (@{politician['username']})")
@@ -371,6 +478,9 @@ class TwitterProfileTweetCollector:
             
             if result['status'] == 'success':
                 successful_collections += 1
+                # Check if we have a valid tweet URL (indicates database save)
+                if result.get('tweet_url'):
+                    database_saves += 1
             else:
                 failed_collections += 1
             
@@ -393,8 +503,10 @@ class TwitterProfileTweetCollector:
         self.stdout.write(f"⏱️  Total time: {duration/60:.1f} minutes")
         self.stdout.write(f"👥 Politicians processed: {len(politicians)}")
         self.stdout.write(f"✅ Successful collections: {successful_collections}")
+        self.stdout.write(f"💾 Tweets saved to database: {database_saves}")
         self.stdout.write(f"❌ Failed collections: {failed_collections}")
         self.stdout.write(f"📈 Success rate: {successful_collections/len(politicians)*100:.1f}%")
+        self.stdout.write(f"💽 Database save rate: {database_saves/len(politicians)*100:.1f}%")
         
         # Show breakdown by status
         status_counts = {}
@@ -433,10 +545,17 @@ class Command(BaseCommand):
             default='both',
             help='Type of politicians to collect tweets from (default: both)',
         )
+        parser.add_argument(
+            '--no-save',
+            action='store_true',
+            help='Display only mode - do not save tweets to database (default: save to database)',
+        )
 
     def handle(self, *args, **options):
         limit = options.get('limit')
         politicians_type = options.get('type')
+        no_save = options.get('no_save')
+        save_to_db = not no_save  # Invert the logic
         
         self.stdout.write("🚀 Starting Twitter Tweet Collection for Politicians...")
         self.stdout.write("💡 Make sure you have Chrome browser installed")
@@ -453,12 +572,17 @@ class Command(BaseCommand):
         }
         self.stdout.write(f"👥 Tipo: {type_display[politicians_type]}")
         
+        if save_to_db:
+            self.stdout.write(f"💾 Database saving: ENABLED (default)")
+        else:
+            self.stdout.write(f"👁️  Display only mode (--no-save used)")
+        
         input("\n⏳ Press ENTER to start the browser...")
         
         collector = None
         
         try:
-            collector = TwitterProfileTweetCollector(self.stdout)
+            collector = TwitterProfileTweetCollector(self.stdout, save_to_db)
             results = collector.run_collection(limit, politicians_type)
             
             self.stdout.write(f"\n🎉 Tweet collection complete!")

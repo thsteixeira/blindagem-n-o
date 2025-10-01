@@ -163,12 +163,12 @@ class DeputadoAdmin(admin.ModelAdmin):
                 'twitter_url', 'latest_tweet_url'
             )
         }),
-        ('Dados de Redes Sociais (Grok AI)', {
+        ('Dados de Redes Sociais', {
             'fields': (
                 'social_media_source', 'social_media_confidence', 
                 'needs_social_media_review'
             ),
-            'description': 'Informações extraídas via API oficial, scraping do site ou Grok AI',
+            'description': 'Informações sobre a fonte e confiabilidade dos dados de redes sociais',
             'classes': ('collapse',)
         }),
         ('Metadados', {
@@ -320,12 +320,12 @@ class SenadorAdmin(admin.ModelAdmin):
                 'twitter_url', 'latest_tweet_url'
             )
         }),
-        ('Dados de Redes Sociais (Grok AI)', {
+        ('Dados de Redes Sociais', {
             'fields': (
                 'social_media_source', 'social_media_confidence', 
                 'needs_social_media_review'
             ),
-            'description': 'Informações extraídas via API oficial, scraping do site ou Grok AI',
+            'description': 'Informações sobre a fonte e confiabilidade dos dados de redes sociais',
             'classes': ('collapse',)
         }),
         ('Metadados', {

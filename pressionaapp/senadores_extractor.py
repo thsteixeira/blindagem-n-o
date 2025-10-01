@@ -386,11 +386,12 @@ class SenadoresDataExtractor:
                     result['twitter_url'] = self._clean_twitter_url(grok_profile['url'])
                     result['metadata']['source'] = 'grok_api'
                     result['metadata']['confidence'] = 'medium' if grok_profile['confidence_score'] > 0.7 else 'low'
-                    result['metadata']['needs_review'] = grok_profile['confidence_score'] < 0.8
-                    result['metadata']['details'] = f"Grok API found profile (confidence: {grok_profile['confidence_score']})"
+                    # Always set needs_review=True for Grok-discovered profiles for human verification
+                    result['metadata']['needs_review'] = True
+                    result['metadata']['details'] = f"Grok API found profile (confidence: {grok_profile['confidence_score']}) - marked for review"
                     result['metadata']['extraction_method'].append('grok_fallback')
                     result['metadata']['grok_profile_data'] = grok_profile
-                    logger.info(f"✓ Grok found Twitter: {result['twitter_url']} (confidence: {grok_profile['confidence_score']})")
+                    logger.info(f"✓ Grok found Twitter: {result['twitter_url']} (confidence: {grok_profile['confidence_score']}) - MARKED FOR REVIEW")
                     
             except Exception as e:
                 logger.warning(f"Error in Step 3 (Grok fallback): {str(e)}")
@@ -403,6 +404,7 @@ class SenadoresDataExtractor:
         logger.info(f"  Twitter URL: {'✓' if result['twitter_url'] else '✗'}")
         logger.info(f"  Source: {result['metadata']['source']}")
         logger.info(f"  Confidence: {result['metadata']['confidence']}")
+        logger.info(f"  Needs Review: {'✓ YES' if result['metadata']['needs_review'] else '✗ NO'} {'(Grok API discovery requires human verification)' if result['metadata']['source'] == 'grok_api' else ''}")
         
         return result
     
@@ -491,7 +493,8 @@ class SenadoresDataExtractor:
                     
                     if created:
                         created_count += 1
-                        logger.info(f"✓ Created: {senator.nome_parlamentar}")
+                        review_status = " [NEEDS SOCIAL MEDIA REVIEW]" if metadata.get('needs_review', False) else ""
+                        logger.info(f"✓ Created: {senator.nome_parlamentar}{review_status}")
                     elif update_existing:
                         # Update existing senator
                         senator.nome_parlamentar = nome_parlamentar
@@ -516,7 +519,8 @@ class SenadoresDataExtractor:
                         
                         senator.save()
                         updated_count += 1
-                        logger.info(f"✓ Updated: {senator.nome_parlamentar}")
+                        review_status = " [NEEDS SOCIAL MEDIA REVIEW]" if metadata.get('needs_review', False) else ""
+                        logger.info(f"✓ Updated: {senator.nome_parlamentar}{review_status}")
                     else:
                         # Just mark as active
                         senator.is_active = True

@@ -245,15 +245,31 @@ class Deputado(models.Model):
     latest_tweet_url = models.URLField(null=True, blank=True, verbose_name="Último Tweet")
     
     # Social Media Source Tracking
+    SOCIAL_MEDIA_SOURCE_CHOICES = [
+        ('official_api', 'API Oficial'),
+        ('chamber_website', 'Site da Câmara'),
+        ('grok_api', 'Grok API'),
+        ('google_search', 'Google Search'),
+        ('manual', 'Manual'),
+    ]
+    
+    SOCIAL_MEDIA_CONFIDENCE_CHOICES = [
+        ('high', 'Alta'),
+        ('medium', 'Média'),
+        ('low', 'Baixa'),
+    ]
+    
     social_media_source = models.CharField(
         max_length=50, null=True, blank=True, 
+        choices=SOCIAL_MEDIA_SOURCE_CHOICES,
         verbose_name="Fonte das Redes Sociais",
-        help_text="official_api, chamber_website, grok_api, google_search, or manual"
+        help_text="Fonte de onde foi extraída a informação das redes sociais"
     )
     social_media_confidence = models.CharField(
         max_length=20, null=True, blank=True,
+        choices=SOCIAL_MEDIA_CONFIDENCE_CHOICES,
         verbose_name="Confiança das Redes Sociais", 
-        help_text="high, medium, low"
+        help_text="Nível de confiança da informação das redes sociais"
     )
     needs_social_media_review = models.BooleanField(
         default=False, verbose_name="Precisa Revisar Redes Sociais"
@@ -398,15 +414,31 @@ class Senador(models.Model):
     latest_tweet_url = models.URLField(null=True, blank=True, verbose_name="Último Tweet")
     
     # Social Media Source Tracking
+    SOCIAL_MEDIA_SOURCE_CHOICES = [
+        ('official_api', 'API Oficial'),
+        ('senate_website', 'Site do Senado'),
+        ('grok_api', 'Grok API'),
+        ('google_search', 'Google Search'),
+        ('manual', 'Manual'),
+    ]
+    
+    SOCIAL_MEDIA_CONFIDENCE_CHOICES = [
+        ('high', 'Alta'),
+        ('medium', 'Média'),
+        ('low', 'Baixa'),
+    ]
+    
     social_media_source = models.CharField(
         max_length=50, null=True, blank=True, 
+        choices=SOCIAL_MEDIA_SOURCE_CHOICES,
         verbose_name="Fonte das Redes Sociais",
-        help_text="official_api, senate_website, grok_api, google_search, or manual"
+        help_text="Fonte de onde foi extraída a informação das redes sociais"
     )
     social_media_confidence = models.CharField(
         max_length=20, null=True, blank=True,
+        choices=SOCIAL_MEDIA_CONFIDENCE_CHOICES,
         verbose_name="Confiança das Redes Sociais", 
-        help_text="high, medium, low"
+        help_text="Nível de confiança da informação das redes sociais"
     )
     needs_social_media_review = models.BooleanField(
         default=False, verbose_name="Precisa Revisar Redes Sociais"
