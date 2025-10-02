@@ -32,6 +32,10 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
+# Turnstile Settings - Disable in development for localhost testing
+# Can be overridden with TURNSTILE_ENABLED=true in .env
+TURNSTILE_ENABLED = os.getenv('TURNSTILE_ENABLED', 'false').lower() == 'true' if DEBUG else True
+
 
 # Application definition
 
@@ -55,6 +59,10 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+# Add Turnstile middleware only when enabled
+if TURNSTILE_ENABLED:
+    MIDDLEWARE.append('pressionaapp.middleware.TurnstileMiddleware')
+
 ROOT_URLCONF = 'pressiona.urls'
 
 TEMPLATES = [
@@ -67,6 +75,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'pressionaapp.context_processors.turnstile_keys',
             ],
         },
     },
@@ -134,3 +143,12 @@ GROK_API_KEY = os.getenv('GROK_API_KEY')
 if not GROK_API_KEY:
     import warnings
     warnings.warn("GROK_API_KEY not found in environment variables. Please set it in your .env file.")
+
+# Cloudflare Turnstile Configuration
+TURNSTILE_SITE_KEY = os.getenv('TURNSTILE_SITE_KEY')
+TURNSTILE_SECRET_KEY = os.getenv('TURNSTILE_SECRET_KEY')
+
+# Validate that Turnstile keys are set
+if not TURNSTILE_SITE_KEY or not TURNSTILE_SECRET_KEY:
+    import warnings
+    warnings.warn("Turnstile keys not found in environment variables. Please set TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY in your .env file.")

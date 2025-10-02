@@ -12,4 +12,8 @@ urlpatterns = [
     path('mensagens/', views.twitter_messages_list_view, name='twitter_messages_list'),
     path('twitter-message/<int:message_id>/preview/', views.twitter_message_preview, name='twitter_message_preview'),
     path('twitter-link/<int:message_id>/mark-used/', views.mark_message_used, name='mark_message_used'),
+    
+    # Turnstile bot protection
+    path('verify-turnstile/', views.verify_turnstile_view, name='verify_turnstile'),
+    path('turnstile-challenge/', views.turnstile_challenge_view, name='turnstile_challenge'),
 ]

@@ -3,7 +3,15 @@ from django.http import HttpResponse, JsonResponse
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+from django.views import View
+import json
+import logging
 from .models import Deputado, Senador, TwitterMessage
+from .turnstile_utils import verify_turnstile_token, get_client_ip, mark_turnstile_verified
+
+logger = logging.getLogger(__name__)
 
 # Create your views here.
 
@@ -302,3 +310,72 @@ def twitter_message_preview(request, message_id):
     }
     
     return render(request, 'pressionaapp/twitter_message_preview.html', context)
+
+
+@csrf_exempt
+@require_POST
+def verify_turnstile_view(request):
+    """
+    AJAX endpoint to verify Turnstile token
+    """
+    try:
+        # Parse JSON data
+        data = json.loads(request.body)
+        token = data.get('token')
+        
+        if not token:
+            return JsonResponse({
+                'success': False,
+                'error': 'Token missing',
+                'message': 'Token de verificação não fornecido'
+            }, status=400)
+        
+        # Get client IP
+        ip_address = get_client_ip(request)
+        
+        # Verify token with Cloudflare
+        verification_result = verify_turnstile_token(token, ip_address)
+        
+        if verification_result['success']:
+            # Mark session as verified
+            mark_turnstile_verified(request)
+            
+            logger.info(f"Turnstile verification successful for IP: {ip_address}")
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Verificação realizada com sucesso',
+                'hostname': verification_result.get('hostname'),
+                'challenge_ts': verification_result.get('challenge_ts')
+            })
+        else:
+            logger.warning(f"Turnstile verification failed for IP: {ip_address}, errors: {verification_result.get('error_codes', [])}")
+            
+            return JsonResponse({
+                'success': False,
+                'error': 'Verification failed',
+                'error_codes': verification_result.get('error_codes', []),
+                'message': verification_result.get('message', 'Falha na verificação')
+            }, status=403)
+            
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON',
+            'message': 'Dados inválidos'
+        }, status=400)
+        
+    except Exception as e:
+        logger.error(f"Unexpected error in Turnstile verification: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': 'Internal error',
+            'message': 'Erro interno do servidor'
+        }, status=500)
+
+
+def turnstile_challenge_view(request):
+    """
+    View to display Turnstile challenge page
+    """
+    return render(request, 'pressionaapp/turnstile_challenge.html')

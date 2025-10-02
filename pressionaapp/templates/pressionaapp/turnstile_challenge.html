@@ -1,0 +1,304 @@
+{% extends 'pressionaapp/base.html' %}
+{% load static %}
+
+{% block title %}Verificação de Segurança - Pressiona{% endblock %}
+
+{% block extra_head %}
+<style>
+    .turnstile-container {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    .turnstile-card {
+        background: white;
+        border-radius: 15px;
+        padding: 40px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+        text-align: center;
+        max-width: 500px;
+        width: 90%;
+        margin: 20px;
+    }
+    
+    .turnstile-header {
+        margin-bottom: 30px;
+    }
+    
+    .turnstile-title {
+        color: #2c3e50;
+        font-size: 2.2em;
+        font-weight: 600;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 15px;
+    }
+    
+    .security-icon {
+        font-size: 1.2em;
+        color: #3498db;
+    }
+    
+    .turnstile-description {
+        color: #7f8c8d;
+        font-size: 1.1em;
+        line-height: 1.6;
+        margin-bottom: 30px;
+    }
+    
+    .turnstile-widget-container {
+        display: flex;
+        justify-content: center;
+        margin: 30px 0;
+        min-height: 70px;
+    }
+    
+    .loading-message {
+        color: #95a5a6;
+        font-style: italic;
+        margin-top: 15px;
+    }
+    
+    .error-message {
+        background: #e74c3c;
+        color: white;
+        padding: 15px;
+        border-radius: 8px;
+        margin-top: 20px;
+        display: none;
+    }
+    
+    .success-message {
+        background: #27ae60;
+        color: white;
+        padding: 15px;
+        border-radius: 8px;
+        margin-top: 20px;
+        display: none;
+    }
+    
+    .protected-content {
+        display: none;
+        margin-top: 30px;
+    }
+    
+    .access-button {
+        background: linear-gradient(135deg, #3498db, #2980b9);
+        color: white;
+        border: none;
+        padding: 15px 30px;
+        border-radius: 8px;
+        font-size: 1.1em;
+        font-weight: 600;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-block;
+        transition: all 0.3s ease;
+        margin: 10px;
+    }
+    
+    .access-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(52, 152, 219, 0.3);
+        color: white;
+        text-decoration: none;
+    }
+    
+    .footer-info {
+        margin-top: 40px;
+        padding-top: 20px;
+        border-top: 1px solid #ecf0f1;
+        color: #95a5a6;
+        font-size: 0.9em;
+    }
+    
+    @media (max-width: 768px) {
+        .turnstile-card {
+            padding: 30px 20px;
+        }
+        
+        .turnstile-title {
+            font-size: 1.8em;
+        }
+        
+        .turnstile-description {
+            font-size: 1em;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="turnstile-container">
+    <div class="turnstile-card">
+        <div class="turnstile-header">
+            <h1 class="turnstile-title">
+                <span class="security-icon">🛡️</span>
+                Verificação de Segurança
+            </h1>
+            <p class="turnstile-description">
+                Para acessar a plataforma Pressiona, precisamos verificar que você não é um robô. 
+                Esta verificação protege nossos dados e garante uma experiência melhor para todos os usuários.
+            </p>
+            {% if not TURNSTILE_SITE_KEY %}
+            <div style="background: #f39c12; color: white; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                <strong>🔧 Modo Desenvolvimento</strong><br>
+                Turnstile está desabilitado para desenvolvimento local.
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="turnstile-widget-container">
+            <div id="turnstile-widget"></div>
+            <div id="loading-message" class="loading-message">
+                Carregando verificação de segurança...
+            </div>
+        </div>
+        
+        <div id="error-message" class="error-message">
+            <strong>Erro na verificação!</strong><br>
+            <span id="error-text">Houve um problema na verificação. Tente novamente.</span>
+        </div>
+        
+        <div id="success-message" class="success-message">
+            <strong>Verificação realizada com sucesso!</strong><br>
+            Redirecionando para a plataforma...
+        </div>
+        
+        <div id="protected-content" class="protected-content">
+            <p style="margin-bottom: 20px; color: #2c3e50; font-weight: 600;">
+                ✅ Verificação concluída! Acesse a plataforma:
+            </p>
+            <a href="{% url 'home' %}" class="access-button">
+                🏠 Página Inicial
+            </a>
+            <a href="{% url 'deputados_list' %}" class="access-button">
+                👥 Deputados
+            </a>
+            <a href="{% url 'senadores_list' %}" class="access-button">
+                🏛️ Senadores
+            </a>
+        </div>
+        
+        <div class="footer-info">
+            <p>
+                🔒 Esta verificação é fornecida pelo Cloudflare Turnstile<br>
+                Seus dados são protegidos e não são compartilhados
+            </p>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const widgetContainer = document.getElementById('turnstile-widget');
+    const loadingMessage = document.getElementById('loading-message');
+    const errorMessage = document.getElementById('error-message');
+    const successMessage = document.getElementById('success-message');
+    const protectedContent = document.getElementById('protected-content');
+    const errorText = document.getElementById('error-text');
+    
+    // Check if already verified
+    if (sessionStorage.getItem('turnstile-verified') === 'true') {
+        showSuccess();
+        return;
+    }
+    
+    // Configure and render Turnstile widget
+    if ('{{ TURNSTILE_SITE_KEY }}' === '') {
+        // Development mode - show success directly
+        loadingMessage.textContent = 'Modo desenvolvimento - Turnstile desabilitado';
+        setTimeout(() => {
+            showSuccess();
+        }, 1000);
+        return;
+    }
+    
+    if (typeof turnstile !== 'undefined' && '{{ TURNSTILE_SITE_KEY }}') {
+        turnstile.render('#turnstile-widget', {
+            sitekey: '{{ TURNSTILE_SITE_KEY }}',
+            callback: function(token) {
+                onTurnstileSuccess(token);
+            },
+            'error-callback': function() {
+                onTurnstileError('Falha na verificação. Tente novamente.');
+            },
+            'timeout-callback': function() {
+                onTurnstileError('Verificação expirou. Recarregue a página.');
+            },
+            theme: 'light',
+            size: 'normal',
+        });
+        
+        // Hide loading message once widget is rendered
+        loadingMessage.style.display = 'none';
+    } else {
+        onTurnstileError('Erro de configuração. Contate o administrador.');
+    }
+    
+    function onTurnstileSuccess(token) {
+        console.log('Turnstile verification successful');
+        
+        // Verify token with backend
+        fetch('{% url "verify_turnstile" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}',
+            },
+            body: JSON.stringify({
+                token: token
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                sessionStorage.setItem('turnstile-verified', 'true');
+                sessionStorage.setItem('turnstile-token', token);
+                showSuccess();
+                
+                // Auto-redirect to home after 3 seconds
+                setTimeout(() => {
+                    window.location.href = '{% url "home" %}';
+                }, 3000);
+            } else {
+                onTurnstileError(data.message || 'Falha na verificação do servidor.');
+            }
+        })
+        .catch(error => {
+            console.error('Error verifying token:', error);
+            onTurnstileError('Erro de rede. Tente novamente.');
+        });
+    }
+    
+    function onTurnstileError(message) {
+        console.error('Turnstile error:', message);
+        errorText.textContent = message;
+        errorMessage.style.display = 'block';
+        successMessage.style.display = 'none';
+        
+        // Reset widget after 3 seconds
+        setTimeout(() => {
+            if (typeof turnstile !== 'undefined') {
+                turnstile.reset();
+            }
+            errorMessage.style.display = 'none';
+        }, 3000);
+    }
+    
+    function showSuccess() {
+        widgetContainer.style.display = 'none';
+        loadingMessage.style.display = 'none';
+        errorMessage.style.display = 'none';
+        successMessage.style.display = 'block';
+        protectedContent.style.display = 'block';
+    }
+});
+</script>
+{% endblock %}
