@@ -1,5 +1,31 @@
 from django.contrib import admin
+from django.db.models import Q
 from .models import Deputado, Senador, TwitterMessage, Tweet
+
+
+class HasTwitterProfileFilter(admin.SimpleListFilter):
+    title = 'Perfil do X/Twitter'
+    parameter_name = 'has_twitter'
+    
+    def lookups(self, request, model_admin):
+        return (
+            ('yes', 'Com perfil X/Twitter'),
+            ('no', 'Sem perfil X/Twitter'),
+        )
+    
+    def queryset(self, request, queryset):
+        if self.value() == 'yes':
+            return queryset.filter(
+                Q(twitter_url__isnull=False) & 
+                ~Q(twitter_url__exact='') & 
+                ~Q(twitter_url__exact='N/A')
+            )
+        if self.value() == 'no':
+            return queryset.filter(
+                Q(twitter_url__isnull=True) | 
+                Q(twitter_url__exact='') | 
+                Q(twitter_url__exact='N/A')
+            )
 
 @admin.register(TwitterMessage)
 class TwitterMessageAdmin(admin.ModelAdmin):
@@ -133,7 +159,7 @@ class DeputadoAdmin(admin.ModelAdmin):
     ]
     list_filter = [
         'partido', 'uf', 'is_active', 'social_media_confidence', 
-        'needs_social_media_review', 'social_media_source', 'created_at'
+        'needs_social_media_review', 'social_media_source', HasTwitterProfileFilter, 'created_at'
     ]
     search_fields = [
         'nome_parlamentar', 'partido', 'uf', 'email'
@@ -168,8 +194,7 @@ class DeputadoAdmin(admin.ModelAdmin):
                 'social_media_source', 'social_media_confidence', 
                 'needs_social_media_review'
             ),
-            'description': 'Informações sobre a fonte e confiabilidade dos dados de redes sociais',
-            'classes': ('collapse',)
+            'description': 'Informações sobre a fonte e confiabilidade dos dados de redes sociais'
         }),
         ('Metadados', {
             'fields': (
@@ -290,7 +315,7 @@ class SenadorAdmin(admin.ModelAdmin):
     ]
     list_filter = [
         'partido', 'uf', 'is_active', 'social_media_confidence', 
-        'needs_social_media_review', 'social_media_source', 'created_at'
+        'needs_social_media_review', 'social_media_source', HasTwitterProfileFilter, 'created_at'
     ]
     search_fields = [
         'nome_parlamentar', 'partido', 'uf', 'email'
@@ -325,8 +350,7 @@ class SenadorAdmin(admin.ModelAdmin):
                 'social_media_source', 'social_media_confidence', 
                 'needs_social_media_review'
             ),
-            'description': 'Informações sobre a fonte e confiabilidade dos dados de redes sociais',
-            'classes': ('collapse',)
+            'description': 'Informações sobre a fonte e confiabilidade dos dados de redes sociais'
         }),
         ('Metadados', {
             'fields': (
